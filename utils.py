@@ -3,6 +3,7 @@ import json
 from tqdm import tqdm
 
 from detectron2.structures import BoxMode
+from detectron2.data import MetadataCatalog, DatasetCatalog
 
 
 def register_dataset(data_path, mode, debug_on=False):
@@ -25,7 +26,7 @@ def register_dataset(data_path, mode, debug_on=False):
     category_map = category_mapping(annotations['categories'])
     
     # Loop through the images
-    full_annotations = annotations['images'][:100] if debug_on else annotations['images']
+    full_annotations = annotations['images'][:20] if debug_on else annotations['images']
     for idx, image in enumerate(tqdm(full_annotations)):
         record = {}
         
@@ -41,7 +42,7 @@ def register_dataset(data_path, mode, debug_on=False):
         for detection in detections:
             obj = {
                 "bbox": detection['bbox'],
-                "bbox_mode": BoxMode.XYWH_REL,
+                "bbox_mode": BoxMode.XYWH_ABS,
                 "category_id": category_map[detection['category_id']]
             }
             objs.append(obj)
@@ -53,6 +54,15 @@ def register_dataset(data_path, mode, debug_on=False):
         dataset_dicts.append(record)
     
     return dataset_dicts
+
+def setup_dataset(data_path, debug_on):
+    for mode in ["train", "val"]:
+        # Register the dataset
+        DatasetCatalog.register("COCO_CUSTOM_" + mode, lambda d=mode: register_dataset(data_path, d, debug_on))
+        
+        # Update the metadata
+        category_names = get_category_names(os.path.join(data_path, f"annotations/instances_{mode}2017.json"))
+        MetadataCatalog.get("COCO_CUSTOM_" + mode).set(thing_classes=category_names)
 
 def category_mapping(categories):
     """

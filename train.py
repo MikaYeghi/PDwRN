@@ -30,8 +30,12 @@ from detectron2.solver import build_lr_scheduler, build_optimizer
 from detectron2.utils.events import EventStorage
 
 from detectron2.data import MetadataCatalog, DatasetCatalog
+from detectron2.engine import DefaultTrainer
+from detectron2 import model_zoo
 
-from utils import register_dataset, get_category_names
+from utils import register_dataset, get_category_names, setup_dataset
+
+import pdb
 
 logger = logging.getLogger("detectron2")
 
@@ -49,7 +53,7 @@ def setup(args):
     cfg = get_cfg()
     cfg.merge_from_file(args.config_file)
     cfg.merge_from_list(args.opts)
-    cfg.freeze()
+#     cfg.freeze()
     default_setup(
         cfg, args
     )  # if you don't like any of the default setup, write your own setup code
@@ -76,15 +80,23 @@ def main(args):
     # Register the COCO (LINZ-Real in the future) dataset
     data_path = "/home/myeghiaz/detectron2/datasets/coco"
     debug_on = True
-    for mode in ["train", "val"]:
-        # Register the dataset
-        DatasetCatalog.register("coco_custom_" + mode, lambda d=mode: register_dataset(data_path, d, debug_on))
-        
-        # Update the metadata
-        category_names = get_category_names(os.path.join(data_path, f"annotations/instances_{mode}2017.json"))
-        MetadataCatalog.get("coco_custom_" + mode).set(thing_classes=category_names)    
+    setup_dataset(data_path=data_path, debug_on=debug_on)
 
+    # Modify some configurations
+    cfg.DATASETS.TRAIN = ("COCO_CUSTOM_train",)
+    cfg.DATASETS.TEST = ()
+    cfg.SOLVER.BASE_LR = 0.0001  # pick a good LR
+    cfg.SOLVER.IMS_PER_BATCH = 2
+    cfg.MODEL.RETINANET.BATCH_SIZE_PER_IMAGE = 128
+    cfg.MODEL.RETINANET.NUM_CLASSES = 80
+    cfg.MODEL.WEIGHTS = model_zoo.get_checkpoint_url("COCO-Detection/retinanet_R_101_FPN_3x.yaml")
+    cfg.SOLVER.MAX_ITER = 300
+    
     # TO DO: need to replace the model with another model
+    
+    trainer = DefaultTrainer(cfg)
+    trainer.resume_or_load(resume=False)
+    trainer.train()
     
     do_train(cfg, model, resume=args.resume)
     return do_test(cfg, model)
