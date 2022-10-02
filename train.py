@@ -29,13 +29,18 @@ from detectron2.modeling import build_model
 from detectron2.solver import build_lr_scheduler, build_optimizer
 from detectron2.utils.events import EventStorage
 
+from detectron2.data import MetadataCatalog, DatasetCatalog
+
+from utils import register_dataset, get_category_names
+
 logger = logging.getLogger("detectron2")
 
 def do_test(cfg, model):
-    print("Doing test")
+    print("Doing testing")
     
 def do_train(cfg, model, resume=False):
-    print("Doing testing")
+    model.train()
+    print("Doing training")
 
 def setup(args):
     """
@@ -67,6 +72,19 @@ def main(args):
         model = DistributedDataParallel(
             model, device_ids=[comm.get_local_rank()], broadcast_buffers=False
         )
+    
+    # Register the COCO (LINZ-Real in the future) dataset
+    data_path = "/home/myeghiaz/detectron2/datasets/coco"
+    debug_on = True
+    for mode in ["train", "val"]:
+        # Register the dataset
+        DatasetCatalog.register("coco_custom_" + mode, lambda d=mode: register_dataset(data_path, d, debug_on))
+        
+        # Update the metadata
+        category_names = get_category_names(os.path.join(data_path, f"annotations/instances_{mode}2017.json"))
+        MetadataCatalog.get("coco_custom_" + mode).set(thing_classes=category_names)    
+
+    # TO DO: need to replace the model with another model
     
     do_train(cfg, model, resume=args.resume)
     return do_test(cfg, model)
