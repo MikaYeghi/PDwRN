@@ -36,15 +36,72 @@ from detectron2 import model_zoo
 from utils import register_dataset, get_category_names, setup_dataset
 
 import pdb
+import time
 
 logger = logging.getLogger("detectron2")
 
 def do_test(cfg, model):
-    print("Doing testing")
+    print("Testing")
     
 def do_train(cfg, model, resume=False):
+    # Set the model to training mode
     model.train()
-    print("Doing training")
+    
+    # Create the optimizer and the LR-scheduler
+    optimizer = build_optimizer(cfg, model)
+    scheduler = build_lr_scheduler(cfg, optimizer)
+    
+    # CHECK THE CONFIGURATION BELOW -- NOT SURE WHAT ALL OF THEM MEAN
+    checkpointer = DetectionCheckpointer(
+        model, cfg.OUTPUT_DIR, optimizer=optimizer, scheduler=scheduler
+    )
+    start_iter = (
+        checkpointer.resume_or_load(cfg.MODEL.WEIGHTS, resume=resume).get("iteration", -1) + 1
+    )
+    max_iter = cfg.SOLVER.MAX_ITER
+    periodic_checkpointer = PeriodicCheckpointer(
+        checkpointer, cfg.SOLVER.CHECKPOINT_PERIOD, max_iter=max_iter
+    )
+    writers = default_writers(cfg.OUTPUT_DIR, max_iter) if comm.is_main_process() else []
+    
+    # Create the dataloader for the COCO_CUSTOM dataset
+    data_loader = build_detection_train_loader(cfg)     # create the dataloader
+    
+    logger.info("Starting training from iteration {}".format(start_iter))
+    with EventStorage(start_iter) as storage:
+        for data, iteration in zip(data_loader, range(start_iter, max_iter)):
+            storage.iter = iteration
+
+            loss_dict = model(data)
+            losses = sum(loss_dict.values())
+            assert torch.isfinite(losses).all(), loss_dict
+
+            loss_dict_reduced = {k: v.item() for k, v in comm.reduce_dict(loss_dict).items()}
+            losses_reduced = sum(loss for loss in loss_dict_reduced.values())
+            if comm.is_main_process():
+                storage.put_scalars(total_loss=losses_reduced, **loss_dict_reduced)
+
+            optimizer.zero_grad()
+            losses.backward()
+            optimizer.step()
+            storage.put_scalar("lr", optimizer.param_groups[0]["lr"], smoothing_hint=False)
+            scheduler.step()
+            
+            if (
+                cfg.TEST.EVAL_PERIOD > 0
+                and (iteration + 1) % cfg.TEST.EVAL_PERIOD == 0
+                and iteration != max_iter - 1
+            ):
+                do_test(cfg, model)
+                # Compared to "train_net.py", the test results are not dumped to EventStorage
+                comm.synchronize()
+
+            if iteration - start_iter > 5 and (
+                (iteration + 1) % 20 == 0 or iteration == max_iter - 1
+            ):
+                for writer in writers:
+                    writer.write()
+            periodic_checkpointer.step(iteration)
 
 def setup(args):
     """
@@ -81,22 +138,11 @@ def main(args):
     data_path = "/home/myeghiaz/detectron2/datasets/coco"
     debug_on = True
     setup_dataset(data_path=data_path, debug_on=debug_on)
-
-    # Modify some configurations
-    cfg.DATASETS.TRAIN = ("COCO_CUSTOM_train",)
-    cfg.DATASETS.TEST = ()
-    cfg.SOLVER.BASE_LR = 0.0001  # pick a good LR
-    cfg.SOLVER.IMS_PER_BATCH = 2
-    cfg.MODEL.RETINANET.BATCH_SIZE_PER_IMAGE = 128
-    cfg.MODEL.RETINANET.NUM_CLASSES = 80
-    cfg.MODEL.WEIGHTS = model_zoo.get_checkpoint_url("COCO-Detection/retinanet_R_101_FPN_3x.yaml")
-    cfg.SOLVER.MAX_ITER = 300
-    
-    # TO DO: need to replace the model with another model
-    
-    trainer = DefaultTrainer(cfg)
-    trainer.resume_or_load(resume=False)
-    trainer.train()
+    pdb.set_trace()
+    cfg.DATASETS.TRAIN = ("COCO_CUSTOM_train",)         # change the training dataset to the newly registered one
+    cfg.DATASETS.TEST = ()                              # remove any testing dataset
+    cfg.SOLVER.IMS_PER_BATCH = 8                        # change the batch size, because 16 is too much
+    cfg.SOLVER.MAX_ITER = 100                           # reduce the number of iterations to 100
     
     do_train(cfg, model, resume=args.resume)
     return do_test(cfg, model)
