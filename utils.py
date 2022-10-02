@@ -26,7 +26,7 @@ def register_dataset(data_path, mode, debug_on=False):
     category_map = category_mapping(annotations['categories'])
     
     # Loop through the images
-    full_annotations = annotations['images'][:5] if debug_on else annotations['images']
+    full_annotations = annotations['images'][:1] if debug_on else annotations['images']
     for idx, image in enumerate(tqdm(full_annotations)):
         record = {}
         

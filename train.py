@@ -3,6 +3,8 @@ import os
 from collections import OrderedDict
 import torch
 from torch.nn.parallel import DistributedDataParallel
+import random
+import cv2
 
 import detectron2.utils.comm as comm
 from detectron2.checkpoint import DetectionCheckpointer, PeriodicCheckpointer
@@ -32,6 +34,8 @@ from detectron2.utils.events import EventStorage
 from detectron2.data import MetadataCatalog, DatasetCatalog
 from detectron2.engine import DefaultTrainer
 from detectron2 import model_zoo
+from detectron2.utils.visualizer import Visualizer
+from detectron2.engine import DefaultPredictor
 
 from utils import register_dataset, get_category_names, setup_dataset
 
@@ -138,13 +142,32 @@ def main(args):
     data_path = "/home/myeghiaz/detectron2/datasets/coco"
     debug_on = True
     setup_dataset(data_path=data_path, debug_on=debug_on)
-    pdb.set_trace()
+
     cfg.DATASETS.TRAIN = ("COCO_CUSTOM_train",)         # change the training dataset to the newly registered one
     cfg.DATASETS.TEST = ()                              # remove any testing dataset
     cfg.SOLVER.IMS_PER_BATCH = 8                        # change the batch size, because 16 is too much
-    cfg.SOLVER.MAX_ITER = 100                           # reduce the number of iterations to 100
+    cfg.SOLVER.MAX_ITER = 40                            # reduce the number of iterations to 100
+    cfg.MODEL.WEIGHTS = model_zoo.get_checkpoint_url("COCO-Detection/retinanet_R_50_FPN_3x.yaml")
     
+    # Train
     do_train(cfg, model, resume=args.resume)
+    
+    # Visualize the result
+    cfg.MODEL.WEIGHTS = os.path.join(cfg.OUTPUT_DIR, "model_final.pth")  # path to the model we just trained
+    cfg.MODEL.RETINANET.SCORE_THRESH_TEST = 0.7   # set a custom testing threshold
+    predictor = DefaultPredictor(cfg)
+    dataset_dict = DatasetCatalog.get("COCO_CUSTOM_train")
+    COCO_metadata = MetadataCatalog.get("COCO_CUSTOM_train")
+    for d in random.sample(dataset_dict, 1):
+        im = cv2.imread(d["file_name"])
+        outputs = predictor(im)
+        v = Visualizer(im[:, :, ::-1],
+                       metadata=COCO_metadata, 
+                       scale=1.0
+        )
+        out = v.draw_instance_predictions(outputs["instances"].to("cpu"))
+        out.save("/home/myeghiaz/Project/PDRN/output.jpg")
+    
     return do_test(cfg, model)
 
 if __name__ == "__main__":
