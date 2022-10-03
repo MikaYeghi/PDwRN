@@ -38,11 +38,13 @@ from detectron2.utils.visualizer import Visualizer
 from detectron2.engine import DefaultPredictor
 
 from utils import register_dataset, get_category_names, setup_dataset
+from model import PDwRN
 
 import pdb
 import time
 
 logger = logging.getLogger("detectron2")
+
 
 def do_test(cfg, model):
     print("Testing")
@@ -121,8 +123,15 @@ def setup(args):
     return cfg
 
 def main(args):
+    # Configurations setup
     cfg = setup(args)
-    
+    cfg.DATASETS.TRAIN = ("COCO_CUSTOM_train",)         # change the training dataset to the newly registered one
+    cfg.DATASETS.TEST = ()                              # remove any testing dataset
+    cfg.SOLVER.IMS_PER_BATCH = 8                        # change the batch size, because 16 is too much
+    cfg.SOLVER.MAX_ITER = 10                            # reduce the number of iterations to 100
+    cfg.MODEL.WEIGHTS = model_zoo.get_checkpoint_url("COCO-Detection/retinanet_R_50_FPN_3x.yaml")
+    cfg.MODEL.META_ARCHITECTURE = 'PDwRN'
+
     model = build_model(cfg)
     logger.info("Model:\n{}".format(model))
     
@@ -142,17 +151,11 @@ def main(args):
     data_path = "/home/myeghiaz/detectron2/datasets/coco"
     debug_on = True
     setup_dataset(data_path=data_path, debug_on=debug_on)
-
-    cfg.DATASETS.TRAIN = ("COCO_CUSTOM_train",)         # change the training dataset to the newly registered one
-    cfg.DATASETS.TEST = ()                              # remove any testing dataset
-    cfg.SOLVER.IMS_PER_BATCH = 8                        # change the batch size, because 16 is too much
-    cfg.SOLVER.MAX_ITER = 40                            # reduce the number of iterations to 100
-    cfg.MODEL.WEIGHTS = model_zoo.get_checkpoint_url("COCO-Detection/retinanet_R_50_FPN_3x.yaml")
     
     # Train
     do_train(cfg, model, resume=args.resume)
     
-    # Visualize the result
+    # Visualize the result [DELETE LATER]
     cfg.MODEL.WEIGHTS = os.path.join(cfg.OUTPUT_DIR, "model_final.pth")  # path to the model we just trained
     cfg.MODEL.RETINANET.SCORE_THRESH_TEST = 0.7   # set a custom testing threshold
     predictor = DefaultPredictor(cfg)
