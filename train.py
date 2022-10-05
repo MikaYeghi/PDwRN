@@ -37,7 +37,7 @@ from detectron2 import model_zoo
 from detectron2.utils.visualizer import Visualizer
 from detectron2.engine import DefaultPredictor
 
-from utils import register_dataset, get_category_names, setup_dataset, mapper, LINZ_mapper
+from utils import register_dataset, get_category_names, setup_dataset, mapper, LINZ_mapper, compute_LINZ_loss
 from models import PDwRN, UNet
 
 import pdb
@@ -79,6 +79,8 @@ def do_train(cfg, model, resume=False):
         for data, iteration in zip(data_loader, range(start_iter, max_iter)):
             storage.iter = iteration
 
+            # TO DO: NEED TO MODIFY THE LOSS COMPUTATION BELOW. CURRENTLY DOES NOT COMPUTE THE WAHD
+#             losses = compute_LINZ_loss(data, model)
             loss_dict = model(data)
             losses = sum(loss_dict.values())
             assert torch.isfinite(losses).all(), loss_dict
@@ -119,7 +121,7 @@ def setup(args):
     cfg.merge_from_list(args.opts)
     cfg.DATASETS.TRAIN = ("LINZ_train",)                # change the training dataset to the newly registered one
     cfg.DATASETS.TEST = ()                              # remove any testing dataset
-    cfg.SOLVER.IMS_PER_BATCH = 48                       # change the batch size, because 16 is too much
+    cfg.SOLVER.IMS_PER_BATCH = 8                        # change the batch size, because 16 is too much
     cfg.SOLVER.MAX_ITER = 100                           # reduce the number of iterations to 100
 #     cfg.MODEL.WEIGHTS = model_zoo.get_checkpoint_url("COCO-Detection/retinanet_R_50_FPN_3x.yaml")
     cfg.MODEL.META_ARCHITECTURE = 'UNet'

@@ -4,6 +4,7 @@ from tqdm import tqdm
 import copy
 import cv2
 import torch
+import torch.nn as nn
 import pickle
 from random import randrange
 
@@ -178,6 +179,7 @@ def LINZ_mapper(dataset_dict):
     
     # Record the image tensor
     out_data["image"] = image
+    out_data["num_instances"] = len(dataset_dict["annotations"])
 
     return out_data
 
@@ -218,3 +220,25 @@ def mapper(dataset_dict):
     
     return out_data
     
+def compute_LINZ_loss(batched_inputs, model):
+    # Extract the images
+    images = torch.empty(batched_inputs[0]['image'].shape).unsqueeze(0)
+    for batched_input in batched_inputs:
+        images = torch.cat((images, batched_input['image'].unsqueeze(0)))
+    images = images[1:].cuda()
+    
+    # Run inference on the images
+    pred_map, pred_counts = model(images)
+    
+    # Extract the ground-truth labels
+    # TO DO: NEED TO EXTRACT AND COMPUTE THE LOSS OF GT MAPS
+    gt_counts = torch.tensor([batched_input['num_instances'] for batched_input in batched_inputs]).float().cuda()
+    
+    # Reformat predictions
+    pred_counts = pred_counts.view(-1)
+    
+    # Compute the loss
+    loss_regress = nn.SmoothL1Loss()
+    loss_counts = loss_regress(gt_counts, pred_counts)
+    
+    return loss_counts
