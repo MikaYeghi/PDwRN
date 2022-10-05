@@ -38,7 +38,7 @@ from detectron2.utils.visualizer import Visualizer
 from detectron2.engine import DefaultPredictor
 
 from utils import register_dataset, get_category_names, setup_dataset, mapper, LINZ_mapper
-from model import PDwRN
+from models import PDwRN, UNet
 
 import pdb
 import time
@@ -117,6 +117,12 @@ def setup(args):
     cfg = get_cfg()
     cfg.merge_from_file(args.config_file)
     cfg.merge_from_list(args.opts)
+    cfg.DATASETS.TRAIN = ("LINZ_train",)                # change the training dataset to the newly registered one
+    cfg.DATASETS.TEST = ()                              # remove any testing dataset
+    cfg.SOLVER.IMS_PER_BATCH = 48                       # change the batch size, because 16 is too much
+    cfg.SOLVER.MAX_ITER = 100                           # reduce the number of iterations to 100
+#     cfg.MODEL.WEIGHTS = model_zoo.get_checkpoint_url("COCO-Detection/retinanet_R_50_FPN_3x.yaml")
+    cfg.MODEL.META_ARCHITECTURE = 'UNet'
 #     cfg.freeze()
     default_setup(
         cfg, args
@@ -126,12 +132,6 @@ def setup(args):
 def main(args):
     # Configurations setup
     cfg = setup(args)
-    cfg.DATASETS.TRAIN = ("LINZ_train",)                # change the training dataset to the newly registered one
-    cfg.DATASETS.TEST = ()                              # remove any testing dataset
-    cfg.SOLVER.IMS_PER_BATCH = 48                       # change the batch size, because 16 is too much
-    cfg.SOLVER.MAX_ITER = 100                           # reduce the number of iterations to 100
-    cfg.MODEL.WEIGHTS = model_zoo.get_checkpoint_url("COCO-Detection/retinanet_R_50_FPN_3x.yaml")
-    cfg.MODEL.META_ARCHITECTURE = 'PDwRN'
 
     model = build_model(cfg)
     logger.info("Model:\n{}".format(model))
