@@ -4,6 +4,8 @@ from tqdm import tqdm
 import copy
 import cv2
 import torch
+import pickle
+from random import randrange
 
 from detectron2.structures import BoxMode, Instances, Boxes
 from detectron2.data import MetadataCatalog, DatasetCatalog
@@ -11,6 +13,46 @@ from detectron2.data import detection_utils
 
 import pdb
 
+def register_LINZ(data_path, mode, debug_on=False):
+    annotations_dir = os.path.join(data_path, "annotations")    # full path to the annotations directory
+    images_dir = os.path.join(data_path, "images")              # full path to the images directory
+    
+    annotations_list = os.listdir(annotations_dir)              # list of image filenames
+    images_list = os.listdir(images_dir)                        # list of annotations filenames
+    
+    # Initialize the return list where the dicts will be stored
+    dataset_dicts = []
+    
+    # Loop through the images
+    annotations_list = annotations_list[:1000] if debug_on else annotations_list
+    for idx, annotation_file in enumerate(tqdm(annotations_list)):
+        record = {}
+        
+        # Record preliminary information about the image
+        # The line below causes a decrease in the speed of the loop
+#         assert annotation.split('.')[0] + '.jpg' in images_list, f"{annotation.split('.')[0] + '.jpg'} not found in {images_dir}" 
+        file_name = annotation_file.split('.')[0] + '.jpg'
+        image_id = idx
+        height, width = cv2.imread(os.path.join(images_dir, file_name)).shape[:2]
+        
+        record["file_name"] = file_name
+        record["image_id"] = image_id
+        record["height"] = height
+        record["width"] = width
+        
+        # Record detections
+        vehicles = []
+        with open(os.path.join(annotations_dir, annotation_file), 'rb') as f:
+            annotations = pickle.load(f)
+        del annotations['unknown'] # delete the unknown vehicles from the dataset
+        for vehicle_type in annotations.keys():
+            for vehicle_coordinate in annotations[vehicle_type]:
+                vehicles.append(vehicle_coordinate) # appends a numpy array consisting of 2 values in (x, y) format
+        record["annotations"] = vehicles
+        
+        dataset_dicts.append(record)
+    
+    return dataset_dicts
 
 def register_dataset(data_path, mode, debug_on=False):
     """
@@ -62,13 +104,23 @@ def register_dataset(data_path, mode, debug_on=False):
     return dataset_dicts
 
 def setup_dataset(data_path, debug_on):
+    # TO DO: UPDATE THIS FUNCTION TO HANDLE 2 DATASETS -- COCO AND LINZ
+    
+#     for mode in ["train", "val"]:
+#         # Register the dataset
+#         DatasetCatalog.register("COCO_CUSTOM_" + mode, lambda d=mode: register_dataset(data_path, d, debug_on))
+        
+#         # Update the metadata
+#         category_names = get_category_names(os.path.join(data_path, f"annotations/instances_{mode}2017.json"))
+#         MetadataCatalog.get("COCO_CUSTOM_" + mode).set(thing_classes=category_names)
+    
     for mode in ["train", "val"]:
         # Register the dataset
-        DatasetCatalog.register("COCO_CUSTOM_" + mode, lambda d=mode: register_dataset(data_path, d, debug_on))
+        DatasetCatalog.register("LINZ_" + mode, lambda mode_=mode: register_LINZ(data_path, mode_, debug_on))
         
         # Update the metadata
-        category_names = get_category_names(os.path.join(data_path, f"annotations/instances_{mode}2017.json"))
-        MetadataCatalog.get("COCO_CUSTOM_" + mode).set(thing_classes=category_names)
+#         category_names = get_category_names(os.path.join(data_path, f"annotations/instances_{mode}2017.json"))
+        MetadataCatalog.get("LINZ_" + mode).set(thing_classes=["vehicle"])
 
 def category_mapping(categories):
     """

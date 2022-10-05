@@ -126,7 +126,7 @@ def setup(args):
 def main(args):
     # Configurations setup
     cfg = setup(args)
-    cfg.DATASETS.TRAIN = ("COCO_CUSTOM_train",)         # change the training dataset to the newly registered one
+    cfg.DATASETS.TRAIN = ("LINZ_train",)                # change the training dataset to the newly registered one
     cfg.DATASETS.TEST = ()                              # remove any testing dataset
     cfg.SOLVER.IMS_PER_BATCH = 48                       # change the batch size, because 16 is too much
     cfg.SOLVER.MAX_ITER = 100                           # reduce the number of iterations to 100
@@ -149,7 +149,8 @@ def main(args):
         )
     
     # Register the COCO (LINZ-Real in the future) dataset
-    data_path = "/home/myeghiaz/detectron2/datasets/coco"
+    data_path = "/home/myeghiaz/detectron2/datasets/coco"                               # COCO dataset path
+    data_path = "/home/myeghiaz/Storage/Datasets/LINZ-Real/GSD:0.250m_sample-size:384"  # LINZ-Real dataset path
     debug_on = True
     setup_dataset(data_path=data_path, debug_on=debug_on)
     
