@@ -35,7 +35,7 @@ def register_LINZ(data_path, mode, debug_on=False):
         image_id = idx
         height, width = cv2.imread(os.path.join(images_dir, file_name)).shape[:2]
         
-        record["file_name"] = file_name
+        record["file_name"] = os.path.join(images_dir, file_name)
         record["image_id"] = image_id
         record["height"] = height
         record["width"] = width
@@ -47,7 +47,11 @@ def register_LINZ(data_path, mode, debug_on=False):
         del annotations['unknown'] # delete the unknown vehicles from the dataset
         for vehicle_type in annotations.keys():
             for vehicle_coordinate in annotations[vehicle_type]:
-                vehicles.append(vehicle_coordinate) # appends a numpy array consisting of 2 values in (x, y) format
+                vehicle = {
+                    "gt_point": vehicle_coordinate,
+                    "category_id": 0
+                }
+                vehicles.append(vehicle) # appends a numpy array consisting of 2 values in (x, y) format
         record["annotations"] = vehicles
         
         dataset_dicts.append(record)
@@ -157,6 +161,25 @@ def XYWH2XYXY(bbox):
     bbox[2] = bbox[0] + bbox[2]
     bbox[3] = bbox[1] + bbox[3]
     return bbox
+
+def LINZ_mapper(dataset_dict):
+    dataset_dict = copy.deepcopy(dataset_dict)
+    out_data = {}
+    
+    # Record the basic info
+    for k, v in dataset_dict.items():
+        out_data[k] = v
+    
+    # Read the image
+    file_name = dataset_dict['file_name']
+    image = cv2.imread(file_name)                                    # read the image
+    image = torch.tensor(image[..., ::-1].copy())                    # BGR -> RGB
+    image = image.permute(2, 0, 1)                                   # (H, W, C) -> (C, H, W)
+    
+    # Record the image tensor
+    out_data["image"] = image
+
+    return out_data
 
 def mapper(dataset_dict):
     dataset_dict = copy.deepcopy(dataset_dict)

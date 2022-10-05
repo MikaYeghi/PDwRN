@@ -37,7 +37,7 @@ from detectron2 import model_zoo
 from detectron2.utils.visualizer import Visualizer
 from detectron2.engine import DefaultPredictor
 
-from utils import register_dataset, get_category_names, setup_dataset, mapper
+from utils import register_dataset, get_category_names, setup_dataset, mapper, LINZ_mapper
 from model import PDwRN
 
 import pdb
@@ -71,7 +71,7 @@ def do_train(cfg, model, resume=False):
     writers = default_writers(cfg.OUTPUT_DIR, max_iter) if comm.is_main_process() else []
     
     # Create the dataloader for the COCO_CUSTOM dataset
-    data_loader = build_detection_train_loader(cfg, mapper=mapper)     # create the dataloader
+    data_loader = build_detection_train_loader(cfg, mapper=LINZ_mapper)     # create the dataloader
     
     logger.info("Starting training from iteration {}".format(start_iter))
 
