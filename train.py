@@ -37,7 +37,7 @@ from detectron2 import model_zoo
 from detectron2.utils.visualizer import Visualizer
 from detectron2.engine import DefaultPredictor
 
-from utils import register_dataset, get_category_names, setup_dataset
+from utils import register_dataset, get_category_names, setup_dataset, mapper
 from model import PDwRN
 
 import pdb
@@ -71,9 +71,10 @@ def do_train(cfg, model, resume=False):
     writers = default_writers(cfg.OUTPUT_DIR, max_iter) if comm.is_main_process() else []
     
     # Create the dataloader for the COCO_CUSTOM dataset
-    data_loader = build_detection_train_loader(cfg)     # create the dataloader
+    data_loader = build_detection_train_loader(cfg, mapper=mapper)     # create the dataloader
     
     logger.info("Starting training from iteration {}".format(start_iter))
+
     with EventStorage(start_iter) as storage:
         for data, iteration in zip(data_loader, range(start_iter, max_iter)):
             storage.iter = iteration
@@ -127,8 +128,8 @@ def main(args):
     cfg = setup(args)
     cfg.DATASETS.TRAIN = ("COCO_CUSTOM_train",)         # change the training dataset to the newly registered one
     cfg.DATASETS.TEST = ()                              # remove any testing dataset
-    cfg.SOLVER.IMS_PER_BATCH = 8                        # change the batch size, because 16 is too much
-    cfg.SOLVER.MAX_ITER = 10                            # reduce the number of iterations to 100
+    cfg.SOLVER.IMS_PER_BATCH = 48                       # change the batch size, because 16 is too much
+    cfg.SOLVER.MAX_ITER = 100                           # reduce the number of iterations to 100
     cfg.MODEL.WEIGHTS = model_zoo.get_checkpoint_url("COCO-Detection/retinanet_R_50_FPN_3x.yaml")
     cfg.MODEL.META_ARCHITECTURE = 'PDwRN'
 
@@ -154,7 +155,7 @@ def main(args):
     
     # Train
     do_train(cfg, model, resume=args.resume)
-    
+
     # Visualize the result [DELETE LATER]
     cfg.MODEL.WEIGHTS = os.path.join(cfg.OUTPUT_DIR, "model_final.pth")  # path to the model we just trained
     cfg.MODEL.RETINANET.SCORE_THRESH_TEST = 0.7   # set a custom testing threshold

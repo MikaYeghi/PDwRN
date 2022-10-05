@@ -1,9 +1,15 @@
 import os
 import json
 from tqdm import tqdm
+import copy
+import cv2
+import torch
 
-from detectron2.structures import BoxMode
+from detectron2.structures import BoxMode, Instances, Boxes
 from detectron2.data import MetadataCatalog, DatasetCatalog
+from detectron2.data import detection_utils
+
+import pdb
 
 
 def register_dataset(data_path, mode, debug_on=False):
@@ -87,3 +93,53 @@ def get_category_names(anns_file_path):
         category_names.append(category['name'])
     
     return category_names
+
+def XYWH2XYXY(bbox):
+    """
+    This function takes a list of 4 values which represent a bounding box in XYWH format, and converts it into the XYXY format.
+    
+    Input:
+        - bbox: list (or other iterable consisting of 4 values)
+    """
+    assert len(bbox) == 4, f"Bounding box has length {len(bbox)}. Expected length 4."
+    bbox[2] = bbox[0] + bbox[2]
+    bbox[3] = bbox[1] + bbox[3]
+    return bbox
+
+def mapper(dataset_dict):
+    dataset_dict = copy.deepcopy(dataset_dict)
+    out_data = {}
+    
+    # Read the image info
+    file_name = dataset_dict['file_name']
+    image_id = dataset_dict['image_id']
+    
+    # Read the image
+    image = cv2.imread(file_name)                                    # read the image
+    image = torch.tensor(image[..., ::-1].copy())                    # BGR -> RGB
+    image = image.permute(2, 0, 1)                                   # (H, W, C) -> (C, H, W)
+    H, W = image.shape[1:]                                           # read height and width
+    
+    # Read the annotations
+    annos = Instances(image_size=(H, W))
+    bboxes = Boxes(torch.tensor(
+        [XYWH2XYXY(obj['bbox']) for obj in dataset_dict['annotations']], 
+        dtype=torch.float
+    ))
+    obj_classes = torch.tensor(
+        [obj['category_id'] for obj in dataset_dict['annotations']],
+        dtype=torch.long
+    )
+    annos.set("gt_boxes", bboxes)
+    annos.set("gt_classes", obj_classes)
+    
+    # Fill the output data
+    out_data["file_name"] = file_name
+    out_data["image_id"] = image_id
+    out_data["image"] = image
+    out_data["height"] = H
+    out_data["width"] = W
+    out_data["instances"] = annos
+    
+    return out_data
+    
