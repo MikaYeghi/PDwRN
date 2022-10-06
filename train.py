@@ -2,6 +2,7 @@ import logging
 import os
 from collections import OrderedDict
 import torch
+import torch.nn as nn
 from torch.nn.parallel import DistributedDataParallel
 import random
 import cv2
@@ -80,8 +81,9 @@ def do_train(cfg, model, resume=False):
             storage.iter = iteration
 
             # TO DO: NEED TO MODIFY THE LOSS COMPUTATION BELOW. CURRENTLY DOES NOT COMPUTE THE WAHD
-#             losses = compute_LINZ_loss(data, model)
-            loss_dict = model(data)
+            loss_dict = compute_LINZ_loss(data, model)
+#             pdb.set_trace()
+#             loss_dict = model(data)
             losses = sum(loss_dict.values())
             assert torch.isfinite(losses).all(), loss_dict
 
@@ -121,9 +123,10 @@ def setup(args):
     cfg.merge_from_list(args.opts)
     cfg.DATASETS.TRAIN = ("LINZ_train",)                # change the training dataset to the newly registered one
     cfg.DATASETS.TEST = ()                              # remove any testing dataset
-    cfg.SOLVER.IMS_PER_BATCH = 8                        # change the batch size, because 16 is too much
-    cfg.SOLVER.MAX_ITER = 100                           # reduce the number of iterations to 100
+    cfg.SOLVER.IMS_PER_BATCH = 32                       # change the batch size, because 16 is too much
+    cfg.SOLVER.MAX_ITER = 700                           # reduce the number of iterations to 100
 #     cfg.MODEL.WEIGHTS = model_zoo.get_checkpoint_url("COCO-Detection/retinanet_R_50_FPN_3x.yaml")
+#     cfg.MODEL.WEIGHTS = "./output/model_final.pth"
     cfg.MODEL.META_ARCHITECTURE = 'UNet'
 #     cfg.freeze()
     default_setup(
@@ -147,7 +150,8 @@ def main(args):
     distributed = comm.get_world_size() > 1
     if distributed:
         model = DistributedDataParallel(
-            model, device_ids=[comm.get_local_rank()], broadcast_buffers=False
+            model, device_ids=[comm.get_local_rank()], broadcast_buffers=False,
+            find_unused_parameters=True
         )
     
     # Register the COCO (LINZ-Real in the future) dataset
@@ -159,6 +163,19 @@ def main(args):
     # Train
     do_train(cfg, model, resume=args.resume)
 
+    # Plot LINZ results
+    model.eval()
+    eval_data = DatasetCatalog.get("LINZ_train")
+    data = eval_data[0]
+    img = cv2.imread(data['file_name'])
+    img = img[..., ::-1]
+    img = torch.tensor(img.copy()).unsqueeze(0).permute(0, 3, 1, 2).float().cuda()
+    pred_map, pred_count = model(img)
+    print(f"Predicted number of vehicles: {round(pred_count.item())}")
+    cv2.imwrite("input.jpg", img[0].permute(1,2,0).cpu().numpy())
+    cv2.imwrite("output.jpg", pred_map[0].cpu().detach().numpy() * 255)
+    exit()
+    
     # Visualize the result [DELETE LATER]
     cfg.MODEL.WEIGHTS = os.path.join(cfg.OUTPUT_DIR, "model_final.pth")  # path to the model we just trained
     cfg.MODEL.RETINANET.SCORE_THRESH_TEST = 0.7   # set a custom testing threshold

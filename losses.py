@@ -31,6 +31,8 @@ import torch.nn as nn
 
 torch.set_default_dtype(torch.float32)
 
+import pdb
+
 
 def _assert_no_grad(variables):
     for var in variables:
@@ -243,6 +245,87 @@ class WeightedHausdorffDistance(nn.Module):
         return res
 
 
+def WHD_loss(pred_map, gt, orig_sizes):
+    # Check that the ground-truth has no requires_grad
+    _assert_no_grad(gt)
+    
+    # From init
+    resized_height = orig_sizes[0][0].item()
+    resized_width = orig_sizes[0][1].item()
+    all_img_locations = torch.from_numpy(cartesian([np.arange(resized_height), np.arange(resized_width)])).cuda()
+    max_dist = math.sqrt(resized_height ** 2 + resized_width ** 2)
+    p_ = -9
+    resized_size = torch.tensor([resized_height,
+                                         resized_width],
+                                         dtype=torch.get_default_dtype(),
+                                         device='cuda')
+    n_pixels = resized_height * resized_width
+
+    assert pred_map.dim() == 3, 'The probability map must be (B x H x W)'
+#     assert pred_map.size()[1:3] == orig_sizes[1:], \
+#         'You must configure the WeightedHausdorffDistance with the height and width of the ' \
+#         'probability map that you are using, got a probability map of size %s'\
+#         % str(pred_map.size())
+
+    batch_size = pred_map.shape[0]
+    assert batch_size == len(gt)
+
+    terms_1 = []
+    terms_2 = []
+    for b in range(batch_size):
+        # One by one
+        prob_map_b = pred_map[b, :, :]
+        gt_b = gt[b]
+        orig_size_b = orig_sizes[b, :]
+        norm_factor = (orig_size_b/resized_size).unsqueeze(0)
+        n_gt_pts = gt_b.size()[0]
+
+        # Corner case: no GT points
+        if gt_b.ndimension() == 1 and (gt_b < 0).all().item() == 0:
+            terms_1.append(torch.tensor([0],
+                                dtype=torch.get_default_dtype()))
+            terms_2.append(torch.tensor([max_dist],
+                                dtype=torch.get_default_dtype()))
+            continue
+
+        # Pairwise distances between all possible locations and the GTed locations
+        n_gt_pts = gt_b.size()[0]
+        normalized_x = norm_factor.repeat(n_pixels, 1) *\
+            all_img_locations
+        normalized_y = norm_factor.repeat(len(gt_b), 1)*gt_b
+        d_matrix = cdist(normalized_x, normalized_y)
+
+        # Reshape probability map as a long column vector,
+        # and prepare it for multiplication
+        p = prob_map_b.view(prob_map_b.nelement())
+        n_est_pts = p.sum()
+        p_replicated = p.view(-1, 1).repeat(1, n_gt_pts)
+
+        # Weighted Hausdorff Distance
+        term_1 = (1 / (n_est_pts + 1e-6)) * \
+            torch.sum(p * torch.min(d_matrix, 1)[0])
+        weighted_d_matrix = (1 - p_replicated) * max_dist + p_replicated * d_matrix
+        minn = generaliz_mean(weighted_d_matrix,
+                                p=p_,
+                                dim=0, keepdim=False)
+        term_2 = torch.mean(minn)
+
+        # terms_1[b] = term_1
+        # terms_2[b] = term_2
+        terms_1.append(term_1)
+        terms_2.append(term_2)
+
+    terms_1 = torch.stack(terms_1)
+    terms_2 = torch.stack(terms_2)
+
+    res = terms_1.mean(), terms_2.mean()
+#     if self.return_2_terms:
+#         res = terms_1.mean(), terms_2.mean()
+#     else:
+#         res = terms_1.mean() + terms_2.mean()
+
+    return res
+    
 def generaliz_mean(tensor, dim, p=-9, keepdim=False):
     # """
     # Computes the softmin along some axes.

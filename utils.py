@@ -12,6 +12,8 @@ from detectron2.structures import BoxMode, Instances, Boxes
 from detectron2.data import MetadataCatalog, DatasetCatalog
 from detectron2.data import detection_utils
 
+from losses import WHD_loss
+
 import pdb
 
 def register_LINZ(data_path, mode, debug_on=False):
@@ -25,7 +27,7 @@ def register_LINZ(data_path, mode, debug_on=False):
     dataset_dicts = []
     
     # Loop through the images
-    annotations_list = annotations_list[:1000] if debug_on else annotations_list
+    annotations_list = annotations_list[:1] if debug_on else annotations_list
     for idx, annotation_file in enumerate(tqdm(annotations_list)):
         record = {}
         
@@ -230,9 +232,16 @@ def compute_LINZ_loss(batched_inputs, model):
     # Run inference on the images
     pred_map, pred_counts = model(images)
     
-    # Extract the ground-truth labels
+    # Extract the ground-truth data
     # TO DO: NEED TO EXTRACT AND COMPUTE THE LOSS OF GT MAPS
     gt_counts = torch.tensor([batched_input['num_instances'] for batched_input in batched_inputs]).float().cuda()
+    gt_maps = []
+    for batched_input in batched_inputs:
+        base_tensor = torch.empty(1, 2)
+        for vehicle in batched_input['annotations']:
+            base_tensor = torch.cat((base_tensor, torch.tensor([vehicle['gt_point'][1], vehicle['gt_point'][0]]).unsqueeze(0)))
+        gt_maps.append(base_tensor[1:].cuda())
+    term_1, term_2 = WHD_loss(pred_map, gt_maps, torch.tensor([[384, 384] for _ in range(len(batched_inputs))]).cuda())
     
     # Reformat predictions
     pred_counts = pred_counts.view(-1)
@@ -241,4 +250,8 @@ def compute_LINZ_loss(batched_inputs, model):
     loss_regress = nn.SmoothL1Loss()
     loss_counts = loss_regress(gt_counts, pred_counts)
     
-    return loss_counts
+    return {
+        "loss_regress": loss_counts,
+        "loss_loc_1": term_1,
+        "loss_loc_2": term_2
+    }
