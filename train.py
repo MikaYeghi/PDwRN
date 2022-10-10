@@ -80,10 +80,7 @@ def do_train(cfg, model, resume=False):
         for data, iteration in zip(data_loader, range(start_iter, max_iter)):
             storage.iter = iteration
 
-            # TO DO: NEED TO MODIFY THE LOSS COMPUTATION BELOW. CURRENTLY DOES NOT COMPUTE THE WAHD
-            loss_dict = compute_LINZ_loss(data, model)
-#             pdb.set_trace()
-#             loss_dict = model(data)
+            loss_dict = model(data)
             losses = sum(loss_dict.values())
             assert torch.isfinite(losses).all(), loss_dict
 
@@ -124,10 +121,11 @@ def setup(args):
     cfg.DATASETS.TRAIN = ("LINZ_train",)                # change the training dataset to the newly registered one
     cfg.DATASETS.TEST = ()                              # remove any testing dataset
     cfg.SOLVER.IMS_PER_BATCH = 32                       # change the batch size, because 16 is too much
-    cfg.SOLVER.MAX_ITER = 700                           # reduce the number of iterations to 100
-#     cfg.MODEL.WEIGHTS = model_zoo.get_checkpoint_url("COCO-Detection/retinanet_R_50_FPN_3x.yaml")
-#     cfg.MODEL.WEIGHTS = "./output/model_final.pth"
-    cfg.MODEL.META_ARCHITECTURE = 'UNet'
+    cfg.SOLVER.MAX_ITER = 200                           # reduce the number of iterations to 100
+    cfg.MODEL.WEIGHTS = model_zoo.get_checkpoint_url("COCO-Detection/retinanet_R_50_FPN_3x.yaml")
+    cfg.MODEL.WEIGHTS = "./output/model_final.pth"
+    cfg.MODEL.META_ARCHITECTURE = 'PDwRN'
+    cfg.MODEL.RETINANET.BBOX_REG_LOSS_TYPE = 'smooth_l1_point'
 #     cfg.freeze()
     default_setup(
         cfg, args
@@ -140,7 +138,7 @@ def main(args):
 
     model = build_model(cfg)
     logger.info("Model:\n{}".format(model))
-    
+
     if args.eval_only:
         DetectionCheckpointer(model, save_dir=cfg.OUTPUT_DIR).resume_or_load(
             cfg.MODEL.WEIGHTS, resume=args.resume
@@ -151,11 +149,10 @@ def main(args):
     if distributed:
         model = DistributedDataParallel(
             model, device_ids=[comm.get_local_rank()], broadcast_buffers=False,
-            find_unused_parameters=True
+            # find_unused_parameters=True
         )
     
     # Register the COCO (LINZ-Real in the future) dataset
-    data_path = "/home/myeghiaz/detectron2/datasets/coco"                               # COCO dataset path
     data_path = "/home/myeghiaz/Storage/Datasets/LINZ-Real/GSD:0.250m_sample-size:384"  # LINZ-Real dataset path
     debug_on = True
     setup_dataset(data_path=data_path, debug_on=debug_on)
@@ -164,24 +161,24 @@ def main(args):
     do_train(cfg, model, resume=args.resume)
 
     # Plot LINZ results
-    model.eval()
-    eval_data = DatasetCatalog.get("LINZ_train")
-    data = eval_data[0]
-    img = cv2.imread(data['file_name'])
-    img = img[..., ::-1]
-    img = torch.tensor(img.copy()).unsqueeze(0).permute(0, 3, 1, 2).float().cuda()
-    pred_map, pred_count = model(img)
-    print(f"Predicted number of vehicles: {round(pred_count.item())}")
-    cv2.imwrite("input.jpg", img[0].permute(1,2,0).cpu().numpy())
-    cv2.imwrite("output.jpg", pred_map[0].cpu().detach().numpy() * 255)
-    exit()
+    # model.eval()
+    # eval_data = DatasetCatalog.get("LINZ_train")
+    # data = eval_data[0]
+    # img = cv2.imread(data['file_name'])
+    # img = img[..., ::-1]
+    # img = torch.tensor(img.copy()).unsqueeze(0).permute(0, 3, 1, 2).float().cuda()
+    # pred_map, pred_count = model(img)
+    # print(f"Predicted number of vehicles: {round(pred_count.item())}")
+    # cv2.imwrite("input.jpg", img[0].permute(1,2,0).cpu().numpy())
+    # cv2.imwrite("output.jpg", pred_map[0].cpu().detach().numpy() * 255)
+    # exit()
     
     # Visualize the result [DELETE LATER]
     cfg.MODEL.WEIGHTS = os.path.join(cfg.OUTPUT_DIR, "model_final.pth")  # path to the model we just trained
-    cfg.MODEL.RETINANET.SCORE_THRESH_TEST = 0.7   # set a custom testing threshold
+    cfg.MODEL.RETINANET.SCORE_THRESH_TEST = 0.1   # set a custom testing threshold
     predictor = DefaultPredictor(cfg)
-    dataset_dict = DatasetCatalog.get("COCO_CUSTOM_train")
-    COCO_metadata = MetadataCatalog.get("COCO_CUSTOM_train")
+    dataset_dict = DatasetCatalog.get("LINZ_train")
+    COCO_metadata = MetadataCatalog.get("LINZ_train")
     for d in random.sample(dataset_dict, 1):
         im = cv2.imread(d["file_name"])
         outputs = predictor(im)
@@ -189,8 +186,14 @@ def main(args):
                        metadata=COCO_metadata, 
                        scale=1.0
         )
-        out = v.draw_instance_predictions(outputs["instances"].to("cpu"))
-        out.save("/home/myeghiaz/Project/PDRN/output.jpg")
+        # out = v.draw_instance_predictions(outputs["instances"].to("cpu"))
+        for i in range(len(outputs["instances"].pred_boxes)):
+            out = v.draw_circle(outputs["instances"].pred_boxes.get_centers()[i], 'b', 2)
+        print(outputs)
+        if out:
+            out.save("/home/myeghiaz/Project/PDRN/output.jpg")
+        else:
+            print("NO PREDICTIONS!")
     
     return do_test(cfg, model)
 

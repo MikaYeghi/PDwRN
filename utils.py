@@ -17,6 +17,10 @@ from losses import WHD_loss
 import pdb
 
 def register_LINZ(data_path, mode, debug_on=False):
+    """
+    TO DO: DESCRIPTION OF THIS FUNCTION
+    NOTE: CURRENTLY THIS FUNCTION RETURNS THE COORDINATES IN (y, x) FORMAT
+    """
     annotations_dir = os.path.join(data_path, "annotations")    # full path to the annotations directory
     images_dir = os.path.join(data_path, "images")              # full path to the images directory
     
@@ -54,7 +58,7 @@ def register_LINZ(data_path, mode, debug_on=False):
                     "gt_point": vehicle_coordinate,
                     "category_id": 0
                 }
-                vehicles.append(vehicle) # appends a numpy array consisting of 2 values in (x, y) format
+                vehicles.append(vehicle) # appends a numpy array consisting of 2 values in (y, x) format
         record["annotations"] = vehicles
         
         dataset_dicts.append(record)
@@ -111,22 +115,11 @@ def register_dataset(data_path, mode, debug_on=False):
     return dataset_dicts
 
 def setup_dataset(data_path, debug_on):
-    # TO DO: UPDATE THIS FUNCTION TO HANDLE 2 DATASETS -- COCO AND LINZ
-    
-#     for mode in ["train", "val"]:
-#         # Register the dataset
-#         DatasetCatalog.register("COCO_CUSTOM_" + mode, lambda d=mode: register_dataset(data_path, d, debug_on))
-        
-#         # Update the metadata
-#         category_names = get_category_names(os.path.join(data_path, f"annotations/instances_{mode}2017.json"))
-#         MetadataCatalog.get("COCO_CUSTOM_" + mode).set(thing_classes=category_names)
-    
     for mode in ["train", "val"]:
         # Register the dataset
         DatasetCatalog.register("LINZ_" + mode, lambda mode_=mode: register_LINZ(data_path, mode_, debug_on))
         
         # Update the metadata
-#         category_names = get_category_names(os.path.join(data_path, f"annotations/instances_{mode}2017.json"))
         MetadataCatalog.get("LINZ_" + mode).set(thing_classes=["vehicle"])
 
 def category_mapping(categories):
@@ -169,9 +162,23 @@ def LINZ_mapper(dataset_dict):
     dataset_dict = copy.deepcopy(dataset_dict)
     out_data = {}
     
-    # Record the basic info
+    # Record the basic info, except annotations
     for k, v in dataset_dict.items():
-        out_data[k] = v
+        if k != "annotations":
+            out_data[k] = v
+    
+    # Record instances with random bounding boxes (only box centres matter)
+    annos = Instances(image_size=(dataset_dict['height'], dataset_dict['width']))
+    bboxes = Boxes(torch.tensor(
+        [XYWH2XYXY([obj['gt_point'][0] - 25, obj['gt_point'][1] - 25, 50, 50]) for obj in dataset_dict['annotations']], 
+        dtype=torch.float
+    ))
+    obj_classes = torch.tensor(
+        [veh['category_id'] for veh in dataset_dict['annotations']]
+    )
+    annos.set("gt_boxes", bboxes)
+    annos.set("gt_classes", obj_classes)
+    out_data["instances"] = annos
     
     # Read the image
     file_name = dataset_dict['file_name']
@@ -223,6 +230,7 @@ def mapper(dataset_dict):
     return out_data
     
 def compute_LINZ_loss(batched_inputs, model):
+    pdb.set_trace()
     # Extract the images
     images = torch.empty(batched_inputs[0]['image'].shape).unsqueeze(0)
     for batched_input in batched_inputs:
