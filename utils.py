@@ -7,6 +7,7 @@ import torch
 import torch.nn as nn
 import pickle
 from random import randrange
+import argparse
 
 from detectron2.structures import BoxMode, Instances, Boxes
 from detectron2.data import MetadataCatalog, DatasetCatalog
@@ -17,7 +18,6 @@ import pdb
 def register_LINZ(data_path, mode, debug_on=False):
     """
     TO DO: DESCRIPTION OF THIS FUNCTION
-    NOTE: CURRENTLY THIS FUNCTION RETURNS THE COORDINATES IN (y, x) FORMAT
     """
     annotations_dir = os.path.join(data_path, "annotations")    # full path to the annotations directory
     images_dir = os.path.join(data_path, "images")              # full path to the images directory
@@ -56,7 +56,7 @@ def register_LINZ(data_path, mode, debug_on=False):
                     "gt_point": vehicle_coordinate,
                     "category_id": 0
                 }
-                vehicles.append(vehicle) # appends a numpy array consisting of 2 values in (y, x) format
+                vehicles.append(vehicle) # appends a numpy array consisting of 2 values in (x, y) format
         record["annotations"] = vehicles
         
         dataset_dicts.append(record)
@@ -83,6 +83,23 @@ def XYWH2XYXY(bbox):
     bbox[3] = bbox[1] + bbox[3]
     return bbox
 
+def handle_custom_args(args):
+    assert isinstance(args, argparse.Namespace), "The args variable supplied is not a valid argparse.Namespace object."
+    args_dict = vars(args)
+    custom_options = args_dict['opts']
+    custom_args = {"debug_on": False}
+    for custom_option in custom_options:
+        if '=' in custom_option:
+            k = custom_option.split('=')[0]
+            v = custom_option.split('=')[1]
+            custom_args[k] = v
+        elif custom_option == "debug":
+            custom_args['debug_on'] = True
+        else:
+            raise NotImplementedError
+    vars(args)['opts'] = []
+    return custom_args
+
 def LINZ_mapper(dataset_dict):
     dataset_dict = copy.deepcopy(dataset_dict)
     out_data = {}
@@ -95,7 +112,7 @@ def LINZ_mapper(dataset_dict):
     # Record instances with random bounding boxes (only box centres matter)
     annos = Instances(image_size=(dataset_dict['height'], dataset_dict['width']))
     bboxes = Boxes(torch.tensor(
-        [XYWH2XYXY([obj['gt_point'][1] - 25, obj['gt_point'][0] - 25, 50, 50]) for obj in dataset_dict['annotations']], 
+        [XYWH2XYXY([obj['gt_point'][0] - 25, obj['gt_point'][1] - 25, 50, 50]) for obj in dataset_dict['annotations']], 
         dtype=torch.float
     ))
     obj_classes = torch.tensor(

@@ -38,7 +38,7 @@ from detectron2 import model_zoo
 from detectron2.utils.visualizer import Visualizer
 from detectron2.engine import DefaultPredictor
 
-from utils import setup_dataset, LINZ_mapper
+from utils import setup_dataset, LINZ_mapper, handle_custom_args
 from models import PDwRN
 
 import pdb
@@ -46,9 +46,6 @@ import time
 
 logger = logging.getLogger("detectron2")
 
-
-def do_test(cfg, model):
-    print("Testing")
     
 def do_train(cfg, model, resume=False):
     # Set the model to training mode
@@ -118,19 +115,9 @@ def setup(args):
     cfg = get_cfg()
     cfg.merge_from_file(args.config_file)
     cfg.merge_from_list(args.opts)
-    cfg.DATASETS.TRAIN = ("LINZ_train",)                # change the training dataset to the newly registered one
-    cfg.DATASETS.TEST = ()                              # remove any testing dataset
-    cfg.SOLVER.IMS_PER_BATCH = 8                        # change the batch size, because 16 is too much
-    cfg.SOLVER.MAX_ITER = 100                           # reduce the number of iterations to 100
-    cfg.MODEL.WEIGHTS = model_zoo.get_checkpoint_url("COCO-Detection/retinanet_R_50_FPN_3x.yaml")
-    cfg.MODEL.RETINANET.NUM_CLASSES = 1                 # number of classes, excluding the background class
-    # cfg.MODEL.WEIGHTS = "./output/model_final.pth"
-    cfg.MODEL.META_ARCHITECTURE = 'PDwRN'
-    cfg.MODEL.RETINANET.BBOX_REG_LOSS_TYPE = 'smooth_l1_point'
-#     cfg.freeze()
     default_setup(
         cfg, args
-    )  # if you don't like any of the default setup, write your own setup code
+    )
     return cfg
 
 def main(args):
@@ -153,7 +140,7 @@ def main(args):
         )
     
     # Register the COCO (LINZ-Real in the future) dataset
-    data_path = "/home/myeghiaz/Storage/Datasets/LINZ-Real/GSD:0.250m_sample-size:384"  # LINZ-Real dataset path
+    data_path = "/home/myeghiaz/Storage/Datasets/LINZ-Real/GSD:0.250m_sample-size:384"
     debug_on = True
     setup_dataset(data_path=data_path, debug_on=debug_on)
     
@@ -161,28 +148,26 @@ def main(args):
     do_train(cfg, model, resume=args.resume)
     
     # # Visualize the result [DELETE LATER]
-    # cfg.MODEL.WEIGHTS = os.path.join(cfg.OUTPUT_DIR, "model_final.pth")  # path to the model we just trained
-    # cfg.MODEL.RETINANET.SCORE_THRESH_TEST = 0.1   # set a custom testing threshold
-    # predictor = DefaultPredictor(cfg)
-    # dataset_dict = DatasetCatalog.get("LINZ_train")
-    # COCO_metadata = MetadataCatalog.get("LINZ_train")
-    # for d in random.sample(dataset_dict, 1):
-    #     im = cv2.imread(d["file_name"])
-    #     outputs = predictor(im)
-    #     v = Visualizer(im[:, :, ::-1],
-    #                    metadata=COCO_metadata, 
-    #                    scale=1.0
-    #     )
-    #     # out = v.draw_instance_predictions(outputs["instances"].to("cpu"))
-    #     for i in range(len(outputs["instances"].pred_boxes)):
-    #         out = v.draw_circle(outputs["instances"].pred_boxes.get_centers()[i], 'b', 2)
-    #     print(outputs)
-    #     if out:
-    #         out.save("/home/myeghiaz/Project/PDRN/output.jpg")
-    #     else:
-    #         print("NO PREDICTIONS!")
-    
-    # return do_test(cfg, model)
+    cfg.MODEL.WEIGHTS = os.path.join(cfg.OUTPUT_DIR, "model_final.pth")  # path to the model we just trained
+    cfg.MODEL.RETINANET.SCORE_THRESH_TEST = 0.1   # set a custom testing threshold
+    predictor = DefaultPredictor(cfg)
+    dataset_dict = DatasetCatalog.get("LINZ_train")
+    COCO_metadata = MetadataCatalog.get("LINZ_train")
+    for d in random.sample(dataset_dict, 1):
+        im = cv2.imread(d["file_name"])
+        outputs = predictor(im)
+        v = Visualizer(im[:, :, ::-1],
+                       metadata=COCO_metadata, 
+                       scale=1.0
+        )
+        # out = v.draw_instance_predictions(outputs["instances"].to("cpu"))
+        for i in range(len(outputs["instances"].pred_boxes)):
+            out = v.draw_circle(outputs["instances"].pred_boxes.get_centers()[i], 'b', 2)
+        print(outputs)
+        if out:
+            out.save("/home/myeghiaz/Project/PDRN/output.jpg")
+        else:
+            print("NO PREDICTIONS!")
 
 if __name__ == "__main__":
     args = default_argument_parser().parse_args()
