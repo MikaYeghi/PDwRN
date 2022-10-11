@@ -12,8 +12,6 @@ from detectron2.structures import BoxMode, Instances, Boxes
 from detectron2.data import MetadataCatalog, DatasetCatalog
 from detectron2.data import detection_utils
 
-from losses import WHD_loss
-
 import pdb
 
 def register_LINZ(data_path, mode, debug_on=False):
@@ -65,6 +63,60 @@ def register_LINZ(data_path, mode, debug_on=False):
     
     return dataset_dicts
 
+def setup_dataset(data_path, debug_on):
+    for mode in ["train", "val"]:
+        # Register the dataset
+        DatasetCatalog.register("LINZ_" + mode, lambda mode_=mode: register_LINZ(data_path, mode_, debug_on))
+        
+        # Update the metadata
+        MetadataCatalog.get("LINZ_" + mode).set(thing_classes=["vehicle"])
+
+def XYWH2XYXY(bbox):
+    """
+    This function takes a list of 4 values which represent a bounding box in XYWH format, and converts it into the XYXY format.
+    
+    Input:
+        - bbox: list (or other iterable consisting of 4 values)
+    """
+    assert len(bbox) == 4, f"Bounding box has length {len(bbox)}. Expected length 4."
+    bbox[2] = bbox[0] + bbox[2]
+    bbox[3] = bbox[1] + bbox[3]
+    return bbox
+
+def LINZ_mapper(dataset_dict):
+    dataset_dict = copy.deepcopy(dataset_dict)
+    out_data = {}
+    
+    # Record the basic info, except annotations
+    for k, v in dataset_dict.items():
+        if k != "annotations":
+            out_data[k] = v
+    
+    # Record instances with random bounding boxes (only box centres matter)
+    annos = Instances(image_size=(dataset_dict['height'], dataset_dict['width']))
+    bboxes = Boxes(torch.tensor(
+        [XYWH2XYXY([obj['gt_point'][1] - 25, obj['gt_point'][0] - 25, 50, 50]) for obj in dataset_dict['annotations']], 
+        dtype=torch.float
+    ))
+    obj_classes = torch.tensor(
+        [veh['category_id'] for veh in dataset_dict['annotations']]
+    )
+    annos.set("gt_boxes", bboxes)
+    annos.set("gt_classes", obj_classes)
+    out_data["instances"] = annos
+    
+    # Read the image
+    file_name = dataset_dict['file_name']
+    image = cv2.imread(file_name)                                    # read the image
+    image = torch.tensor(image[..., ::-1].copy())                    # BGR -> RGB
+    image = image.permute(2, 0, 1)                                   # (H, W, C) -> (C, H, W)
+    
+    # Record the image tensor
+    out_data["image"] = image
+    out_data["num_instances"] = len(dataset_dict["annotations"])
+
+    return out_data   
+
 def register_dataset(data_path, mode, debug_on=False):
     """
     This function registers a new dataset. In order to do this, it takes as inputs some parameters which describe the dataset,
@@ -113,153 +165,3 @@ def register_dataset(data_path, mode, debug_on=False):
         dataset_dicts.append(record)
     
     return dataset_dicts
-
-def setup_dataset(data_path, debug_on):
-    for mode in ["train", "val"]:
-        # Register the dataset
-        DatasetCatalog.register("LINZ_" + mode, lambda mode_=mode: register_LINZ(data_path, mode_, debug_on))
-        
-        # Update the metadata
-        MetadataCatalog.get("LINZ_" + mode).set(thing_classes=["vehicle"])
-
-def category_mapping(categories):
-    """
-    This function takes COCO format category descriptions and maps them to new, ordered categories.
-    The reason for implementing this function is that COCO misses some category id-s. For example, it doesn't have
-    a category id 12.
-    """
-    k = 0
-    category_map = {}
-    for category in categories:
-        category_map[category['id']] = k
-        k += 1
-    return category_map
-
-def get_category_names(anns_file_path):
-    # Load the annotations file
-    with open(anns_file_path, 'r') as f:
-        annotations = json.load(f)
-    
-    category_names = []
-    for category in annotations['categories']:
-        category_names.append(category['name'])
-    
-    return category_names
-
-def XYWH2XYXY(bbox):
-    """
-    This function takes a list of 4 values which represent a bounding box in XYWH format, and converts it into the XYXY format.
-    
-    Input:
-        - bbox: list (or other iterable consisting of 4 values)
-    """
-    assert len(bbox) == 4, f"Bounding box has length {len(bbox)}. Expected length 4."
-    bbox[2] = bbox[0] + bbox[2]
-    bbox[3] = bbox[1] + bbox[3]
-    return bbox
-
-def LINZ_mapper(dataset_dict):
-    dataset_dict = copy.deepcopy(dataset_dict)
-    out_data = {}
-    
-    # Record the basic info, except annotations
-    for k, v in dataset_dict.items():
-        if k != "annotations":
-            out_data[k] = v
-    
-    # Record instances with random bounding boxes (only box centres matter)
-    annos = Instances(image_size=(dataset_dict['height'], dataset_dict['width']))
-    bboxes = Boxes(torch.tensor(
-        [XYWH2XYXY([obj['gt_point'][0] - 25, obj['gt_point'][1] - 25, 50, 50]) for obj in dataset_dict['annotations']], 
-        dtype=torch.float
-    ))
-    obj_classes = torch.tensor(
-        [veh['category_id'] for veh in dataset_dict['annotations']]
-    )
-    annos.set("gt_boxes", bboxes)
-    annos.set("gt_classes", obj_classes)
-    out_data["instances"] = annos
-    
-    # Read the image
-    file_name = dataset_dict['file_name']
-    image = cv2.imread(file_name)                                    # read the image
-    image = torch.tensor(image[..., ::-1].copy())                    # BGR -> RGB
-    image = image.permute(2, 0, 1)                                   # (H, W, C) -> (C, H, W)
-    
-    # Record the image tensor
-    out_data["image"] = image
-    out_data["num_instances"] = len(dataset_dict["annotations"])
-
-    return out_data
-
-def mapper(dataset_dict):
-    dataset_dict = copy.deepcopy(dataset_dict)
-    out_data = {}
-    
-    # Read the image info
-    file_name = dataset_dict['file_name']
-    image_id = dataset_dict['image_id']
-    
-    # Read the image
-    image = cv2.imread(file_name)                                    # read the image
-    image = torch.tensor(image[..., ::-1].copy())                    # BGR -> RGB
-    image = image.permute(2, 0, 1)                                   # (H, W, C) -> (C, H, W)
-    H, W = image.shape[1:]                                           # read height and width
-    
-    # Read the annotations
-    annos = Instances(image_size=(H, W))
-    bboxes = Boxes(torch.tensor(
-        [XYWH2XYXY(obj['bbox']) for obj in dataset_dict['annotations']], 
-        dtype=torch.float
-    ))
-    obj_classes = torch.tensor(
-        [obj['category_id'] for obj in dataset_dict['annotations']],
-        dtype=torch.long
-    )
-    annos.set("gt_boxes", bboxes)
-    annos.set("gt_classes", obj_classes)
-    
-    # Fill the output data
-    out_data["file_name"] = file_name
-    out_data["image_id"] = image_id
-    out_data["image"] = image
-    out_data["height"] = H
-    out_data["width"] = W
-    out_data["instances"] = annos
-    
-    return out_data
-    
-def compute_LINZ_loss(batched_inputs, model):
-    pdb.set_trace()
-    # Extract the images
-    images = torch.empty(batched_inputs[0]['image'].shape).unsqueeze(0)
-    for batched_input in batched_inputs:
-        images = torch.cat((images, batched_input['image'].unsqueeze(0)))
-    images = images[1:].cuda()
-    
-    # Run inference on the images
-    pred_map, pred_counts = model(images)
-    
-    # Extract the ground-truth data
-    # TO DO: NEED TO EXTRACT AND COMPUTE THE LOSS OF GT MAPS
-    gt_counts = torch.tensor([batched_input['num_instances'] for batched_input in batched_inputs]).float().cuda()
-    gt_maps = []
-    for batched_input in batched_inputs:
-        base_tensor = torch.empty(1, 2)
-        for vehicle in batched_input['annotations']:
-            base_tensor = torch.cat((base_tensor, torch.tensor([vehicle['gt_point'][1], vehicle['gt_point'][0]]).unsqueeze(0)))
-        gt_maps.append(base_tensor[1:].cuda())
-    term_1, term_2 = WHD_loss(pred_map, gt_maps, torch.tensor([[384, 384] for _ in range(len(batched_inputs))]).cuda())
-    
-    # Reformat predictions
-    pred_counts = pred_counts.view(-1)
-    
-    # Compute the loss
-    loss_regress = nn.SmoothL1Loss()
-    loss_counts = loss_regress(gt_counts, pred_counts)
-    
-    return {
-        "loss_regress": loss_counts,
-        "loss_loc_1": term_1,
-        "loss_loc_2": term_2
-    }

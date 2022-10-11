@@ -38,8 +38,8 @@ from detectron2 import model_zoo
 from detectron2.utils.visualizer import Visualizer
 from detectron2.engine import DefaultPredictor
 
-from utils import register_dataset, get_category_names, setup_dataset, mapper, LINZ_mapper, compute_LINZ_loss
-from models import PDwRN, UNet
+from utils import setup_dataset, LINZ_mapper
+from models import PDwRN
 
 import pdb
 import time
@@ -58,7 +58,7 @@ def do_train(cfg, model, resume=False):
     optimizer = build_optimizer(cfg, model)
     scheduler = build_lr_scheduler(cfg, optimizer)
     
-    # CHECK THE CONFIGURATION BELOW -- NOT SURE WHAT ALL OF THEM MEAN
+    # TO DO: CHECK THE CONFIGURATION BELOW -- NOT SURE WHAT ALL OF THEM MEAN
     checkpointer = DetectionCheckpointer(
         model, cfg.OUTPUT_DIR, optimizer=optimizer, scheduler=scheduler
     )
@@ -120,10 +120,11 @@ def setup(args):
     cfg.merge_from_list(args.opts)
     cfg.DATASETS.TRAIN = ("LINZ_train",)                # change the training dataset to the newly registered one
     cfg.DATASETS.TEST = ()                              # remove any testing dataset
-    cfg.SOLVER.IMS_PER_BATCH = 32                       # change the batch size, because 16 is too much
-    cfg.SOLVER.MAX_ITER = 200                           # reduce the number of iterations to 100
+    cfg.SOLVER.IMS_PER_BATCH = 8                        # change the batch size, because 16 is too much
+    cfg.SOLVER.MAX_ITER = 100                           # reduce the number of iterations to 100
     cfg.MODEL.WEIGHTS = model_zoo.get_checkpoint_url("COCO-Detection/retinanet_R_50_FPN_3x.yaml")
-    cfg.MODEL.WEIGHTS = "./output/model_final.pth"
+    cfg.MODEL.RETINANET.NUM_CLASSES = 1                 # number of classes, excluding the background class
+    # cfg.MODEL.WEIGHTS = "./output/model_final.pth"
     cfg.MODEL.META_ARCHITECTURE = 'PDwRN'
     cfg.MODEL.RETINANET.BBOX_REG_LOSS_TYPE = 'smooth_l1_point'
 #     cfg.freeze()
@@ -148,8 +149,7 @@ def main(args):
     distributed = comm.get_world_size() > 1
     if distributed:
         model = DistributedDataParallel(
-            model, device_ids=[comm.get_local_rank()], broadcast_buffers=False,
-            # find_unused_parameters=True
+            model, device_ids=[comm.get_local_rank()], broadcast_buffers=False
         )
     
     # Register the COCO (LINZ-Real in the future) dataset
@@ -159,43 +159,30 @@ def main(args):
     
     # Train
     do_train(cfg, model, resume=args.resume)
-
-    # Plot LINZ results
-    # model.eval()
-    # eval_data = DatasetCatalog.get("LINZ_train")
-    # data = eval_data[0]
-    # img = cv2.imread(data['file_name'])
-    # img = img[..., ::-1]
-    # img = torch.tensor(img.copy()).unsqueeze(0).permute(0, 3, 1, 2).float().cuda()
-    # pred_map, pred_count = model(img)
-    # print(f"Predicted number of vehicles: {round(pred_count.item())}")
-    # cv2.imwrite("input.jpg", img[0].permute(1,2,0).cpu().numpy())
-    # cv2.imwrite("output.jpg", pred_map[0].cpu().detach().numpy() * 255)
-    # exit()
     
-    # Visualize the result [DELETE LATER]
-    cfg.MODEL.WEIGHTS = os.path.join(cfg.OUTPUT_DIR, "model_final.pth")  # path to the model we just trained
-    cfg.MODEL.RETINANET.SCORE_THRESH_TEST = 0.1   # set a custom testing threshold
-    predictor = DefaultPredictor(cfg)
-    dataset_dict = DatasetCatalog.get("LINZ_train")
-    COCO_metadata = MetadataCatalog.get("LINZ_train")
-    for d in random.sample(dataset_dict, 1):
-        im = cv2.imread(d["file_name"])
-        outputs = predictor(im)
-        v = Visualizer(im[:, :, ::-1],
-                       metadata=COCO_metadata, 
-                       scale=1.0
-        )
-        # out = v.draw_instance_predictions(outputs["instances"].to("cpu"))
-        for i in range(len(outputs["instances"].pred_boxes)):
-            out = v.draw_circle(outputs["instances"].pred_boxes.get_centers()[i], 'b', 2)
-        print(outputs)
-        if out:
-            out.save("/home/myeghiaz/Project/PDRN/output.jpg")
-        else:
-            print("NO PREDICTIONS!")
+    # # Visualize the result [DELETE LATER]
+    # cfg.MODEL.WEIGHTS = os.path.join(cfg.OUTPUT_DIR, "model_final.pth")  # path to the model we just trained
+    # cfg.MODEL.RETINANET.SCORE_THRESH_TEST = 0.1   # set a custom testing threshold
+    # predictor = DefaultPredictor(cfg)
+    # dataset_dict = DatasetCatalog.get("LINZ_train")
+    # COCO_metadata = MetadataCatalog.get("LINZ_train")
+    # for d in random.sample(dataset_dict, 1):
+    #     im = cv2.imread(d["file_name"])
+    #     outputs = predictor(im)
+    #     v = Visualizer(im[:, :, ::-1],
+    #                    metadata=COCO_metadata, 
+    #                    scale=1.0
+    #     )
+    #     # out = v.draw_instance_predictions(outputs["instances"].to("cpu"))
+    #     for i in range(len(outputs["instances"].pred_boxes)):
+    #         out = v.draw_circle(outputs["instances"].pred_boxes.get_centers()[i], 'b', 2)
+    #     print(outputs)
+    #     if out:
+    #         out.save("/home/myeghiaz/Project/PDRN/output.jpg")
+    #     else:
+    #         print("NO PREDICTIONS!")
     
-    return do_test(cfg, model)
+    # return do_test(cfg, model)
 
 if __name__ == "__main__":
     args = default_argument_parser().parse_args()
