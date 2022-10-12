@@ -124,6 +124,7 @@ def main(args):
     # Configurations setup
     cfg = setup(args)
 
+    # Build the model
     model = build_model(cfg)
     logger.info("Model:\n{}".format(model))
 
@@ -133,6 +134,7 @@ def main(args):
         )
         return do_test(cfg, model)
     
+    # Distribute among GPU-s
     distributed = comm.get_world_size() > 1
     if distributed:
         model = DistributedDataParallel(
@@ -141,33 +143,12 @@ def main(args):
     
     # Register the COCO (LINZ-Real in the future) dataset
     data_path = "/home/myeghiaz/Project/PDRN/data/"
-    debug_on = False
+    debug_on = True
     setup_dataset(data_path=data_path, debug_on=debug_on)
 
     # Train
     do_train(cfg, model, resume=args.resume)
-    exit()
-    # # Visualize the result [DELETE LATER]
-    cfg.MODEL.WEIGHTS = os.path.join(cfg.OUTPUT_DIR, "model_final.pth")  # path to the model we just trained
-    cfg.MODEL.RETINANET.SCORE_THRESH_TEST = 0.1   # set a custom testing threshold
-    predictor = DefaultPredictor(cfg)
-    dataset_dict = DatasetCatalog.get("LINZ_train")
-    COCO_metadata = MetadataCatalog.get("LINZ_train")
-    for d in random.sample(dataset_dict, 1):
-        im = cv2.imread(d["file_name"])
-        outputs = predictor(im)
-        v = Visualizer(im[:, :, ::-1],
-                       metadata=COCO_metadata, 
-                       scale=1.0
-        )
-        # out = v.draw_instance_predictions(outputs["instances"].to("cpu"))
-        for i in range(len(outputs["instances"].pred_boxes)):
-            out = v.draw_circle(outputs["instances"].pred_boxes.get_centers()[i], 'b', 2)
-        print(outputs)
-        if out:
-            out.save("/home/myeghiaz/Project/PDRN/output.jpg")
-        else:
-            print("NO PREDICTIONS!")
+    logger.info("Training finished.")
 
 if __name__ == "__main__":
     args = default_argument_parser().parse_args()

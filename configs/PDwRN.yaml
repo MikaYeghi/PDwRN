@@ -39,13 +39,9 @@ INPUT:
 MODEL:
   ANCHOR_GENERATOR:
     ANGLES:
-    - - -90
-      - 0
-      - 90
+    - - 0
     ASPECT_RATIOS:
-    - - 0.5
-      - 1.0
-      - 2.0
+    - - 1.0
     NAME: DefaultAnchorGenerator
     OFFSET: 0.0
     SIZES:
