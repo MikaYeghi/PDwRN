@@ -34,6 +34,8 @@ from detectron2.modeling.meta_arch.dense_detector import DenseDetector, permute_
 
 from losses import _dense_box_regression_loss
 
+import pdb
+
 
 @META_ARCH_REGISTRY.register()
 class PDwRN(RetinaNet):

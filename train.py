@@ -140,10 +140,10 @@ def main(args):
         )
     
     # Register the COCO (LINZ-Real in the future) dataset
-    data_path = "/home/myeghiaz/Storage/Datasets/LINZ-Real/GSD:0.250m_sample-size:384"
+    data_path = "/home/myeghiaz/Project/PDRN/data/"
     debug_on = True
     setup_dataset(data_path=data_path, debug_on=debug_on)
-    
+
     # Train
     do_train(cfg, model, resume=args.resume)
     

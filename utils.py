@@ -29,7 +29,7 @@ def register_LINZ(data_path, mode, debug_on=False):
     dataset_dicts = []
     
     # Loop through the images
-    annotations_list = annotations_list[:1] if debug_on else annotations_list
+    annotations_list = annotations_list[:10] if debug_on else annotations_list
     for idx, annotation_file in enumerate(tqdm(annotations_list)):
         record = {}
         
