@@ -269,7 +269,6 @@ MODEL:
     NORM: GN
     NUM_CLASSES: 54
   WEIGHTS: https://dl.fbaipublicfiles.com/detectron2/COCO-Detection/retinanet_R_50_FPN_3x/190397829/model_final_5bd44e.pkl
-  # WEIGHTS: ./output/model_final.pth
 OUTPUT_DIR: ./output
 SEED: -1
 SOLVER:

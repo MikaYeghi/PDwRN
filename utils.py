@@ -13,12 +13,15 @@ from detectron2.structures import BoxMode, Instances, Boxes
 from detectron2.data import MetadataCatalog, DatasetCatalog
 from detectron2.data import detection_utils
 
+import time
 import pdb
 
 def register_LINZ(data_path, mode, debug_on=False):
     """
     TO DO: DESCRIPTION OF THIS FUNCTION
     """
+    data_path = copy.deepcopy(data_path)
+    data_path = os.path.join(data_path, mode)
     annotations_dir = os.path.join(data_path, "annotations")    # full path to the annotations directory
     images_dir = os.path.join(data_path, "images")              # full path to the images directory
     
@@ -26,19 +29,20 @@ def register_LINZ(data_path, mode, debug_on=False):
     images_list = os.listdir(images_dir)                        # list of annotations filenames
     
     # Initialize the return list where the dicts will be stored
-    dataset_dicts = []
+    annotations_list = annotations_list[:10] if debug_on else annotations_list
+    dataset_dicts = [None for _ in range(len(annotations_list))]
     
     # Loop through the images
-    annotations_list = annotations_list[:10] if debug_on else annotations_list
     for idx, annotation_file in enumerate(tqdm(annotations_list)):
+        st = time.time()
         record = {}
         
         # Record preliminary information about the image
-        # The line below causes a decrease in the speed of the loop
-#         assert annotation.split('.')[0] + '.jpg' in images_list, f"{annotation.split('.')[0] + '.jpg'} not found in {images_dir}" 
+        # NOTE: reading image height and width slows down data set loading A LOT. Temporary fix -- supply (384, 384)
         file_name = annotation_file.split('.')[0] + '.jpg'
         image_id = idx
-        height, width = cv2.imread(os.path.join(images_dir, file_name)).shape[:2]
+        # height, width = cv2.imread(os.path.join(images_dir, file_name)).shape[:2]
+        height, width = 384, 384
         
         record["file_name"] = os.path.join(images_dir, file_name)
         record["image_id"] = image_id
@@ -59,14 +63,16 @@ def register_LINZ(data_path, mode, debug_on=False):
                 vehicles.append(vehicle) # appends a numpy array consisting of 2 values in (x, y) format
         record["annotations"] = vehicles
         
-        dataset_dicts.append(record)
+        # dataset_dicts.append(record)
+        dataset_dicts[idx] = record
+        et = time.time()
     
     return dataset_dicts
 
 def setup_dataset(data_path, debug_on):
-    for mode in ["train", "val"]:
+    for mode in ["train", "test"]:
         # Register the dataset
-        DatasetCatalog.register("LINZ_" + mode, lambda mode_=mode: register_LINZ(data_path, mode_, debug_on))
+        DatasetCatalog.register("LINZ_" + mode, lambda mode_=mode : register_LINZ(data_path, mode_, debug_on))
         
         # Update the metadata
         MetadataCatalog.get("LINZ_" + mode).set(thing_classes=["vehicle"])

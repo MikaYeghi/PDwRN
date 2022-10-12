@@ -68,7 +68,7 @@ def do_train(cfg, model, resume=False):
     )
     writers = default_writers(cfg.OUTPUT_DIR, max_iter) if comm.is_main_process() else []
     
-    # Create the dataloader for the COCO_CUSTOM dataset
+    # Create a dataloader for the training dataset
     data_loader = build_detection_train_loader(cfg, mapper=LINZ_mapper)     # create the dataloader
     
     logger.info("Starting training from iteration {}".format(start_iter))
@@ -141,12 +141,12 @@ def main(args):
     
     # Register the COCO (LINZ-Real in the future) dataset
     data_path = "/home/myeghiaz/Project/PDRN/data/"
-    debug_on = True
+    debug_on = False
     setup_dataset(data_path=data_path, debug_on=debug_on)
 
     # Train
     do_train(cfg, model, resume=args.resume)
-    
+    exit()
     # # Visualize the result [DELETE LATER]
     cfg.MODEL.WEIGHTS = os.path.join(cfg.OUTPUT_DIR, "model_final.pth")  # path to the model we just trained
     cfg.MODEL.RETINANET.SCORE_THRESH_TEST = 0.1   # set a custom testing threshold
