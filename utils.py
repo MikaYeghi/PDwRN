@@ -118,7 +118,7 @@ def LINZ_mapper(dataset_dict):
     # Record instances with random bounding boxes (only box centres matter)
     annos = Instances(image_size=(dataset_dict['height'], dataset_dict['width']))
     bboxes = Boxes(torch.tensor(
-        [XYWH2XYXY([obj['gt_point'][0] - 25, obj['gt_point'][1] - 25, 50, 50]) for obj in dataset_dict['annotations']], 
+        [XYWH2XYXY([obj['gt_point'][0] - 16, obj['gt_point'][1] - 16, 32, 32]) for obj in dataset_dict['annotations']], 
         dtype=torch.float
     ))
     obj_classes = torch.tensor(
