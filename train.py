@@ -141,9 +141,9 @@ def main(args):
             model, device_ids=[comm.get_local_rank()], broadcast_buffers=False
         )
     
-    # Register the COCO (LINZ-Real in the future) dataset
+    # Register the LINZ-Real dataset
     data_path = "/home/myeghiaz/Project/PDRN/data/"
-    debug_on = True
+    debug_on = False
     setup_dataset(data_path=data_path, debug_on=debug_on)
 
     # Train

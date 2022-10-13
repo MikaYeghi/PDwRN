@@ -29,7 +29,7 @@ def register_LINZ(data_path, mode, debug_on=False):
     images_list = os.listdir(images_dir)                        # list of annotations filenames
     
     # Initialize the return list where the dicts will be stored
-    annotations_list = annotations_list[:10] if debug_on else annotations_list
+    annotations_list = annotations_list[:100] if debug_on else annotations_list
     dataset_dicts = [None for _ in range(len(annotations_list))]
     
     # Loop through the images

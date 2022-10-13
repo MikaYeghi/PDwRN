@@ -4,3 +4,4 @@ __pycache__/
 *.jpg
 data/
 raw_data/
+saved_models/
