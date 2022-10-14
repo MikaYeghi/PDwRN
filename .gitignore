@@ -5,4 +5,4 @@ __pycache__/
 data/
 raw_data/
 saved_models/
-training_graphs/
+graphs_training/
