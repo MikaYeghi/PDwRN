@@ -1,7 +1,7 @@
 CUDNN_BENCHMARK: false
 DATALOADER:
   ASPECT_RATIO_GROUPING: true
-  FILTER_EMPTY_ANNOTATIONS: false
+  FILTER_EMPTY_ANNOTATIONS: true
   NUM_WORKERS: 4
   REPEAT_THRESHOLD: 0.0
   SAMPLER_TRAIN: TrainingSampler
@@ -23,7 +23,7 @@ INPUT:
     - 0.9
     - 0.9
     TYPE: relative_range
-  FORMAT: RGB # <- used to be BGR
+  FORMAT: BGR
   MASK_FORMAT: polygon
   MAX_SIZE_TEST: 1333
   MAX_SIZE_TRAIN: 1333
@@ -47,20 +47,20 @@ MODEL:
     OFFSET: 0.0
     SIZES:
     - - 32
-      - 40.31747359663594
-      - 50.79683366298238
-    - - 64
-      - 80.63494719327188
-      - 101.59366732596476
-    - - 128
-      - 161.26989438654377
-      - 203.18733465192952
-    - - 256
-      - 322.53978877308754
-      - 406.37466930385904
-    - - 512
-      - 645.0795775461751
-      - 812.7493386077181
+    #   - 40.31747359663594
+    #   - 50.79683366298238
+    # - - 64
+    #   - 80.63494719327188
+    #   - 101.59366732596476
+    # - - 128
+    #   - 161.26989438654377
+    #   - 203.18733465192952
+    # - - 256
+    #   - 322.53978877308754
+    #   - 406.37466930385904
+    # - - 512
+    #   - 645.0795775461751
+    #   - 812.7493386077181
   BACKBONE:
     FREEZE_AT: 2
     NAME: build_retinanet_resnet_fpn_backbone
@@ -131,18 +131,18 @@ MODEL:
     - p6
     - p7
     IOU_LABELS:
-    - 0
-    - -1
-    - 1
-    IOU_THRESHOLDS:
-    - 0.4
-    - 0.5
+    - 0    # some class (vehicle, in this case)
+    - -1   # unassigned
+    - 1    # background
+    IOU_THRESHOLDS: # between 0.4 and 0.5 -- unassigned
+    - 0.4  # below 0.4 -- background
+    - 0.5  # above 0.5 -- some class
     NMS_THRESH_TEST: 0.5
     NORM: ''
     NUM_CLASSES: 1
     NUM_CONVS: 4
     PRIOR_PROB: 0.01
-    SCORE_THRESH_TEST: 0.9
+    SCORE_THRESH_TEST: 0.8    # predictions with confidence above this value are preserved
     SMOOTH_L1_LOSS_BETA: 0.0
     TOPK_CANDIDATES_TEST: 1000
   ROI_BOX_CASCADE_HEAD:
@@ -290,10 +290,10 @@ SOLVER:
   REFERENCE_WORLD_SIZE: 0
   RESCALE_INTERVAL: false
   STEPS:
-  - 210000
-  - 250000
+  - 3000 # <- used to be 210000
+  - 6000 # <- used to be 250000
   WARMUP_FACTOR: 0.001
-  WARMUP_ITERS: 1000
+  WARMUP_ITERS: 500
   WARMUP_METHOD: linear
   WEIGHT_DECAY: 0.0001
   WEIGHT_DECAY_BIAS: null

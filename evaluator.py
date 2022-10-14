@@ -63,6 +63,7 @@ class PDwRNEvaluator(DatasetEvaluator):
                     if gt_pred_dist < 6:
                         gt_points[gt_idx]['status'] = torch.tensor(1).long().cuda()
                         pred_points['status'][pred_idx] = torch.tensor(1).long().cuda()
+                        break
                 if gt_point['status'] == 1:
                     TP_count += 1
                 else:
