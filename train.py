@@ -142,7 +142,7 @@ def main(args):
         )
     
     # Register the LINZ-Real dataset
-    data_path = "/home/myeghiaz/Project/PDRN/data/"
+    data_path = "/home/myeghiaz/Project/PDwRN/data/"
     debug_on = False
     setup_dataset(data_path=data_path, debug_on=debug_on)
 
