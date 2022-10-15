@@ -4,6 +4,8 @@ import os
 import cv2
 from torch.nn.parallel import DistributedDataParallel
 from tqdm import tqdm
+import numpy as np
+import torch
 
 import detectron2.utils.comm as comm
 from detectron2.engine import default_argument_parser, launch, default_setup, default_writers
@@ -82,6 +84,30 @@ def do_test(cfg, predictor, test_data_paths, reduce_datasets=True):
         results = list(results.values())[0]
     return results
 
+def compute_dataset_AP(cfg, dataset_path, th_values, reduce_dataset=True):
+    # TO DO: MOVE reduce dataset OPERATIONS INTO A FUNCTION
+    precision_list = []
+    recall_list = []
+    dataset_name = cfg.DATASETS.TEST[0]
+    
+    logger.info(f"Running Average Precision evaluation on {dataset_name}")
+    evaluator = PDwRNEvaluator(cfg, dataset_path)
+    logger.info(f"AP evaluation threshold values:{th_values}")
+    for th_val in th_values:
+        cfg.merge_from_list(["MODEL.RETINANET.SCORE_THRESH_TEST", th_val.item()])
+        predictor = DefaultPredictor(cfg)
+        evaluator.reset()
+        results_i = do_test(cfg, predictor, [dataset_path], reduce_datasets=reduce_dataset)
+        
+        # Record the precision and recall values
+        precision_list.append(results_i['precision'])
+        recall_list.append(results_i['recall'])
+    logger.info("Average Precision calculation complete.")
+    logger.info(f"Precision list: {precision_list}\nRecall list: {recall_list}")
+    
+    AP_value = torch.tensor(precision_list).mean()
+    logger.info(f"Average Precision: {round(AP_value.item() * 100, 2)}%")
+
 def setup(args):
     """
     Create configs and perform basic setups.
@@ -108,15 +134,20 @@ def main(args):
         )
 
     # Register the LINZ-Real dataset
-    data_path = "/home/myeghiaz/Project/PDRN/data/"
-    debug_on = False
+    data_path = "/home/myeghiaz/Project/PDwRN/data/"
+    debug_on = True # If set to true, only a small random portion of the dataset will be loaded
+    compute_AP = True
+    th_values = np.linspace(0, 1, 21) # 0, 0.05, 0.1, ...
     setup_dataset(data_path=data_path, debug_on=debug_on)
     
     # Record the test data sets paths
     test_data_paths = [os.path.join(data_path, "test")]
         
     # Run testing
-    do_test(cfg, predictor, test_data_paths, reduce_datasets=False)
+    if compute_AP:
+        compute_dataset_AP(cfg, os.path.join(data_path, "test"), th_values, reduce_dataset=False)
+    else:
+        do_test(cfg, predictor, test_data_paths, reduce_datasets=False)
 
 if __name__ == "__main__":
     args = default_argument_parser().parse_args()

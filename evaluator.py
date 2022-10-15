@@ -79,7 +79,18 @@ class PDwRNEvaluator(DatasetEvaluator):
     
     def evaluate(self):
         results = OrderedDict()
-        results["precision"] = self.TP / (self.TP + self.FP)
-        results["recall"] = self.TP / (self.TP + self.FN)
-        results["FP_rate"] = self.FP / (self.FP + self.TP)
+        # results["precision"] = self.TP / (self.TP + self.FP)
+        # results["recall"] = self.TP / (self.TP + self.FN)
+        # results["FP_rate"] = self.FP / (self.FP + self.TP)
+        
+        # Avoid division by 0
+        if self.TP + self.FP > 0:
+            results["precision"] = self.TP / (self.TP + self.FP)
+        else:
+            results["precision"] = 0.0
+        if self.TP + self.FN > 0:
+            results["recall"] = self.TP / (self.TP + self.FN)
+        else:
+            results["recall"] = 0.0
+        
         return results
