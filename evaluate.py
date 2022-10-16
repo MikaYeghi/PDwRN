@@ -6,6 +6,8 @@ from torch.nn.parallel import DistributedDataParallel
 from tqdm import tqdm
 import numpy as np
 import torch
+from pathlib import Path
+from matplotlib import pyplot as plt
 
 import detectron2.utils.comm as comm
 from detectron2.engine import default_argument_parser, launch, default_setup, default_writers
@@ -24,7 +26,7 @@ import pdb
 logger = logging.getLogger("detectron2")
 
 
-def do_test_new(cfg, predictor, test_data_paths, reduce_datasets=True):
+def do_test_new(cfg, predictor, test_data_paths, reduce_datasets=False):
     results = OrderedDict()
     for dataset_name, test_data_path in zip(cfg.DATASETS.TEST, test_data_paths):
         logger.info(f"Running evaluation on {dataset_name}")
@@ -54,7 +56,7 @@ def do_test_new(cfg, predictor, test_data_paths, reduce_datasets=True):
         results = list(results.values())[0]
     return results
 
-def do_test(cfg, predictor, test_data_paths, reduce_datasets=True):
+def do_test(cfg, predictor, test_data_paths, reduce_datasets=False):
     results = OrderedDict()
     for dataset_name, test_data_path in zip(cfg.DATASETS.TEST, test_data_paths):
         logger.info(f"Running evaluation on {dataset_name}")
@@ -84,12 +86,13 @@ def do_test(cfg, predictor, test_data_paths, reduce_datasets=True):
         results = list(results.values())[0]
     return results
 
-def compute_dataset_AP(cfg, dataset_path, th_values, reduce_dataset=True):
+def compute_dataset_AP(cfg, dataset_path, th_values, reduce_dataset=False, save_dir="metrics"):
     # TO DO: MOVE reduce dataset OPERATIONS INTO A FUNCTION
     precision_list = []
     recall_list = []
     dataset_name = cfg.DATASETS.TEST[0]
     
+    # Run evaluation
     logger.info(f"Running Average Precision evaluation on {dataset_name}")
     evaluator = PDwRNEvaluator(cfg, dataset_path)
     logger.info(f"AP evaluation threshold values:{th_values}")
@@ -107,6 +110,26 @@ def compute_dataset_AP(cfg, dataset_path, th_values, reduce_dataset=True):
     
     AP_value = torch.tensor(precision_list).mean()
     logger.info(f"Average Precision: {round(AP_value.item() * 100, 2)}%")
+    
+    # Save the results
+    Path(save_dir).mkdir(parents=True, exist_ok=True)
+    text = f"Precision list:\n{precision_list}\nRecall list:\n{recall_list}\nAverage Precision (AP): {AP_value}"
+    PR_curve_img_path = os.path.join(save_dir, "PR_curve.jpg")
+    PR_info_path = os.path.join(save_dir, "results.txt")
+    logger.info(f"Saving the results to {save_dir}")
+    with open(PR_info_path, 'w') as f:
+        f.write(text)
+    
+    # Generate and save the PR-curve graph
+    fig = plt.figure()
+    plt.plot(recall_list, precision_list, 'b')
+    plt.grid(True)
+    plt.xlim([0, 1])
+    plt.ylim([0, 1])
+    plt.xlabel("Recall")
+    plt.ylabel("Precision")
+    plt.title("Precision-Recall curve")
+    fig.savefig(PR_curve_img_path, dpi=fig.dpi)
 
 def setup(args):
     """
@@ -145,9 +168,9 @@ def main(args):
         
     # Run testing
     if compute_AP:
-        compute_dataset_AP(cfg, os.path.join(data_path, "test"), th_values, reduce_dataset=False)
+        compute_dataset_AP(cfg, os.path.join(data_path, "test"), th_values)
     else:
-        do_test(cfg, predictor, test_data_paths, reduce_datasets=False)
+        do_test(cfg, predictor, test_data_paths)
 
 if __name__ == "__main__":
     args = default_argument_parser().parse_args()

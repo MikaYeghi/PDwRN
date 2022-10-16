@@ -6,3 +6,4 @@ data/
 raw_data/
 saved_models/
 graphs_training/
+metrics/
