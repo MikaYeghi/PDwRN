@@ -9,6 +9,7 @@ import torch
 from pathlib import Path
 from matplotlib import pyplot as plt
 import random
+import pandas as pd
 
 import detectron2.utils.comm as comm
 from detectron2.engine import default_argument_parser, launch, default_setup, default_writers
@@ -19,7 +20,7 @@ from detectron2.evaluation import inference_on_dataset, print_csv_format
 from detectron2.engine import DefaultPredictor
 
 from models import PDwRN
-from utils import setup_dataset
+from utils import setup_dataset, get_image_statistics
 from evaluator import PDwRNEvaluator
 
 import pdb
@@ -59,52 +60,104 @@ def do_test(cfg, predictor, test_data_paths, reduce_datasets=False, fast_AP=Fals
         results = list(results.values())[0]
     return results
 
-def compute_dataset_AP(cfg, dataset_path, th_values, reduce_dataset=False, fast_AP=False, save_dir="metrics"):
-    # TO DO: MOVE reduce dataset OPERATIONS INTO A FUNCTION
-    precision_list = []
-    recall_list = []
-    dataset_name = cfg.DATASETS.TEST[0]
+def compute_dataset_AP(cfg, dataset_name, conf_thresh):    
+    logger.info("Loading the dataset.")
     
-    # Run evaluation
-    logger.info(f"Running Average Precision evaluation on {dataset_name}")
-    evaluator = PDwRNEvaluator(cfg, dataset_path)
-    logger.info(f"AP evaluation threshold values:{th_values}")
-    for th_val in th_values:
-        cfg.merge_from_list(["MODEL.RETINANET.SCORE_THRESH_TEST", th_val.item()])
-        predictor = DefaultPredictor(cfg)
-        evaluator.reset()
-        results_i = do_test(cfg, predictor, [dataset_path], reduce_datasets=reduce_dataset, fast_AP=fast_AP)
+    # Initialize the parallel lists where the predictions info will be stored
+    file_names = []        # a list of file names for every single detection (NOT image, but detection!)
+    confidences = []       # a list of confidences per detection
+    true_positives = []    # a list of boolean values indicating whether the prediction is TP (True) or FP (False)
+    
+    # Load the dataset
+    test_dataset = DatasetCatalog.get(dataset_name)
+    total_gt_count = 0
+    
+    # Build the predictor
+    cfg.merge_from_list(["MODEL.RETINANET.SCORE_THRESH_TEST", conf_thresh])
+    predictor = DefaultPredictor(cfg)
+    distributed = comm.get_world_size() > 1
+    if distributed:
+        predictor = DistributedDataParallel(
+            predictor, device_ids=[comm.get_local_rank()], broadcast_buffers=False
+        )
         
-        # Record the precision and recall values
-        precision_list.append(results_i['precision'])
-        recall_list.append(results_i['recall'])
-    logger.info("Average Precision calculation complete.")
-    logger.info(f"Precision list: {precision_list}\nRecall list: {recall_list}")
+    logger.info("Generating the precision-recall curve.")
+    # Generate predictions
+    for input_ in tqdm(test_dataset):
+        # Generate the predictions
+        file_name = input_['file_name']
+        image = cv2.imread(file_name)
+        output_ = predictor(image)
+        
+        # Record the predictions
+        file_names_, confidences_, true_positives_ = get_image_statistics(input_, output_)
+        
+        # Merge the statistics into the global lists
+        file_names = file_names + file_names_
+        confidences = confidences + confidences_
+        true_positives = true_positives + true_positives_
+        
+        # Ground-truth counter
+        total_gt_count += len(input_['annotations'])
     
-    AP_value = torch.tensor(precision_list).mean()
-    logger.info(f"Average Precision: {round(AP_value.item() * 100, 2)}%")
+    # Construct the evaluation info dataframe
+    evaluation_info = pd.DataFrame(
+        list(zip(file_names, confidences, true_positives)), 
+        columns=["File names", "Confidence", "TP"]
+    )
     
-    # Save the results
-    Path(save_dir).mkdir(parents=True, exist_ok=True)
-    text = f"Precision list:\n{precision_list}\nRecall list:\n{recall_list}\nAverage Precision (AP): {AP_value}"
-    PR_curve_img_path = os.path.join(save_dir, "PR_curve.jpg")
-    PR_info_path = os.path.join(save_dir, "results.txt")
-    logger.info(f"Saving the results to {save_dir}")
-    with open(PR_info_path, 'w') as f:
-        f.write(text)
+    # Sort the dataframe in descending confidence order
+    evaluation_info = evaluation_info.sort_values(by=['Confidence'], ascending=False)
     
-    # Generate and save the PR-curve graph
+    # Create the FP column
+    evaluation_info["FP"] = evaluation_info.apply(lambda row : 1 - row['TP'], axis=1)
+    
+    # Create the accumulated TP and FP columns
+    evaluation_info["Acc_TP"] = evaluation_info['TP'].cumsum()
+    evaluation_info["Acc_FP"] = evaluation_info['FP'].cumsum()
+    
+    # Create the "Precision" and "Recall" columns
+    evaluation_info["Precision"] = evaluation_info.apply(lambda row : row["Acc_TP"] / (row["Acc_TP"] + row["Acc_FP"]), axis=1)
+    evaluation_info["Recall"] = evaluation_info.apply(lambda row : row["Acc_TP"] / total_gt_count, axis=1)
+    
+    # Extract the lists
+    recall_list = evaluation_info["Recall"].to_numpy()
+    precision_list = evaluation_info["Precision"].to_numpy()
+    recall_list = np.concatenate(([0.], recall_list, [1.]))
+    precision_list = np.concatenate(([1.], precision_list, [0.]))
+    
+    # Compute and the average precision
+    for i in range(precision_list.size - 1, 0, -1):
+        precision_list[i - 1] = np.maximum(precision_list[i - 1], precision_list[i])
+
+    # to calculate area under PR curve, look for points
+    # where X axis (recall) changes value
+    i = np.where(recall_list[1:] != recall_list[:-1])[0]
+
+    # and sum (\Delta recall) * prec
+    ap = np.sum((recall_list[i + 1] - recall_list[i]) * precision_list[i + 1])
+    logger.info(f"Average precision: {round(100 * ap, 2)}%.")
+    
+    # Save the plot
     fig = plt.figure()
     plt.plot(recall_list, precision_list, 'b')
     plt.grid(True)
     plt.xlim([0, 1])
     plt.ylim([0, 1])
+    plt.title("Precision-recall curve")
     plt.xlabel("Recall")
     plt.ylabel("Precision")
-    plt.title("Precision-Recall curve")
-    fig.savefig(PR_curve_img_path, dpi=fig.dpi)
+    plt.show()
+    fig.savefig("metrics/PR_curve.jpg", dpi=fig.dpi)
     
-    logger.info("Evaluation complete.")
+    # Save the dataframe to 'metrics/results.csv' and AP to results.txt
+    logger.info("Saving the results to the 'metrics' folder...")
+    evaluation_info.to_csv("metrics/results.csv")
+    text = f"Average Precision (AP)={round(100 * ap, 2)}%"
+    with open("metrics/results.txt", 'w') as f:
+        f.write(text)
+    
+    logger.info("Evaluation finished.")
 
 def setup(args):
     """
@@ -136,7 +189,7 @@ def main(args):
     debug_on = False     # If set to true, only a small random portion of the dataset will be loaded
     compute_AP = True    # If True, average precision is computed
     fast_AP = True       # If True, a subset consisting of 3000 images is used for computing AP
-    th_values = np.linspace(0, 1, 21) # 0, 0.05, 0.1, ...
+    conf_thresh = 0.000001   # Confidence threshold used for computing the Precision-Recall curve
 
     setup_dataset(data_path=data_path, debug_on=debug_on)
     reduce_dataset = cfg.DATALOADER.FILTER_EMPTY_ANNOTATIONS
@@ -146,7 +199,7 @@ def main(args):
         
     # Run testing
     if compute_AP:
-        compute_dataset_AP(cfg, os.path.join(data_path, "test"), th_values, reduce_dataset=reduce_dataset, fast_AP=fast_AP)
+        compute_dataset_AP(cfg, "LINZ_test", conf_thresh)
     else:
         do_test(cfg, predictor, test_data_paths)
 

@@ -188,3 +188,37 @@ def register_dataset(data_path, mode, debug_on=False):
         dataset_dicts.append(record)
     
     return dataset_dicts
+
+def get_image_statistics(inputs, outputs):
+    # Initialize the return lists
+    file_names = []
+    confidences = []
+    true_positives = []
+    
+    # Get some parameters
+    n_preds = len(outputs['instances'])
+    
+    # Fill the file_names
+    file_name = inputs['file_name']
+    file_names = [file_name for _ in range(n_preds)]
+    
+    # Fill the confidences
+    confidences = outputs['instances'].get('scores').tolist()
+    
+    # Fill the true_positives
+    # inputs['annotations'] is a list of dicts, where each dict has the following key-value pairs:
+    # gt_point: 2D array of the ground-truth point
+    # category_id: class ID
+    true_positives = [0 for _ in range(n_preds)]
+    for gt_point in inputs['annotations']:
+        gt_coord = torch.tensor(gt_point['gt_point']).cuda()
+        distances = torch.zeros(n_preds, device='cuda', dtype=torch.float)
+        for i in range(n_preds):
+            pred_coord = outputs['instances'].pred_boxes.get_centers()[i]
+            distance = torch.sqrt(torch.sum(torch.square(pred_coord - gt_coord)))
+            distances[i] = distance
+        closest_idx = torch.argmin(distances).item()
+        if distances[closest_idx] < 6:
+            true_positives[closest_idx] = 1
+    
+    return (file_names, confidences, true_positives)
