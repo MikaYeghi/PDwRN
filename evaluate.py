@@ -8,6 +8,7 @@ import numpy as np
 import torch
 from pathlib import Path
 from matplotlib import pyplot as plt
+import random
 
 import detectron2.utils.comm as comm
 from detectron2.engine import default_argument_parser, launch, default_setup, default_writers
@@ -26,17 +27,19 @@ import pdb
 logger = logging.getLogger("detectron2")
 
 
-def do_test_new(cfg, predictor, test_data_paths, reduce_datasets=False):
+def do_test(cfg, predictor, test_data_paths, reduce_datasets=False, fast_AP=False):
     results = OrderedDict()
     for dataset_name, test_data_path in zip(cfg.DATASETS.TEST, test_data_paths):
-        logger.info(f"Running evaluation on {dataset_name}")
+        logger.info(f"Running evaluation on {dataset_name} with confidence threshold {cfg.MODEL.RETINANET.SCORE_THRESH_TEST}")
         dataset_dicts = DatasetCatalog.get(dataset_name)
         if reduce_datasets:
             old_length = len(dataset_dicts)
             dataset_dicts = [dataset_dict for dataset_dict in dataset_dicts if len(dataset_dict['annotations']) > 0]
             new_length = len(dataset_dicts)
-            logger.info(f"Successfully removed {old_length - new_length} images from the dataset.")
-            logger.info(f"Continuing with {new_length} images.")
+            logger.info(f"Successfully removed {old_length - new_length} images from the dataset. Continuing with {new_length} images.")
+        if fast_AP:
+            logger.info("Running fast AP computation using 3000 images.")
+            dataset_dicts = random.sample(dataset_dicts, 3000)
         evaluator = PDwRNEvaluator(cfg, test_data_path)
 
         for input_ in tqdm(dataset_dicts):
@@ -56,37 +59,7 @@ def do_test_new(cfg, predictor, test_data_paths, reduce_datasets=False):
         results = list(results.values())[0]
     return results
 
-def do_test(cfg, predictor, test_data_paths, reduce_datasets=False):
-    results = OrderedDict()
-    for dataset_name, test_data_path in zip(cfg.DATASETS.TEST, test_data_paths):
-        logger.info(f"Running evaluation on {dataset_name}")
-        dataset_dicts = DatasetCatalog.get(dataset_name)
-        if reduce_datasets:
-            old_length = len(dataset_dicts)
-            dataset_dicts = [dataset_dict for dataset_dict in dataset_dicts if len(dataset_dict['annotations']) > 0]
-            new_length = len(dataset_dicts)
-            logger.info(f"Successfully removed {old_length - new_length} images from the dataset.")
-            logger.info(f"Continuing with {new_length} images.")
-        evaluator = PDwRNEvaluator(cfg, test_data_path)
-
-        for input_ in tqdm(dataset_dicts):
-            image = cv2.imread(input_['file_name'])
-            output_ = predictor(image)
-            evaluator.process([input_], [output_])
-            
-        results_i = evaluator.evaluate()
-        if results_i is None:
-            results_i = {}
-        
-        results[dataset_name] = results_i
-        if comm.is_main_process():
-            logger.info("Evaluation results for {} in csv format:".format(dataset_name))
-            print_csv_format(results_i)
-    if len(results) == 1:
-        results = list(results.values())[0]
-    return results
-
-def compute_dataset_AP(cfg, dataset_path, th_values, reduce_dataset=False, save_dir="metrics"):
+def compute_dataset_AP(cfg, dataset_path, th_values, reduce_dataset=False, fast_AP=False, save_dir="metrics"):
     # TO DO: MOVE reduce dataset OPERATIONS INTO A FUNCTION
     precision_list = []
     recall_list = []
@@ -100,7 +73,7 @@ def compute_dataset_AP(cfg, dataset_path, th_values, reduce_dataset=False, save_
         cfg.merge_from_list(["MODEL.RETINANET.SCORE_THRESH_TEST", th_val.item()])
         predictor = DefaultPredictor(cfg)
         evaluator.reset()
-        results_i = do_test(cfg, predictor, [dataset_path], reduce_datasets=reduce_dataset)
+        results_i = do_test(cfg, predictor, [dataset_path], reduce_datasets=reduce_dataset, fast_AP=fast_AP)
         
         # Record the precision and recall values
         precision_list.append(results_i['precision'])
@@ -130,6 +103,8 @@ def compute_dataset_AP(cfg, dataset_path, th_values, reduce_dataset=False, save_
     plt.ylabel("Precision")
     plt.title("Precision-Recall curve")
     fig.savefig(PR_curve_img_path, dpi=fig.dpi)
+    
+    logger.info("Evaluation complete.")
 
 def setup(args):
     """
@@ -158,17 +133,20 @@ def main(args):
 
     # Register the LINZ-Real dataset
     data_path = "/home/myeghiaz/Project/PDwRN/data/"
-    debug_on = True # If set to true, only a small random portion of the dataset will be loaded
-    compute_AP = True
+    debug_on = False     # If set to true, only a small random portion of the dataset will be loaded
+    compute_AP = True    # If True, average precision is computed
+    fast_AP = True       # If True, a subset consisting of 3000 images is used for computing AP
     th_values = np.linspace(0, 1, 21) # 0, 0.05, 0.1, ...
+
     setup_dataset(data_path=data_path, debug_on=debug_on)
+    reduce_dataset = cfg.DATALOADER.FILTER_EMPTY_ANNOTATIONS
     
     # Record the test data sets paths
     test_data_paths = [os.path.join(data_path, "test")]
         
     # Run testing
     if compute_AP:
-        compute_dataset_AP(cfg, os.path.join(data_path, "test"), th_values)
+        compute_dataset_AP(cfg, os.path.join(data_path, "test"), th_values, reduce_dataset=reduce_dataset, fast_AP=fast_AP)
     else:
         do_test(cfg, predictor, test_data_paths)
 
