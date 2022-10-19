@@ -60,8 +60,11 @@ def do_test(cfg, predictor, test_data_paths, reduce_datasets=False, fast_AP=Fals
         results = list(results.values())[0]
     return results
 
-def compute_dataset_AP(cfg, dataset_name, conf_thresh):    
+def compute_dataset_AP(cfg, dataset_name, conf_thresh, save_dir="metrics"):    
     logger.info("Loading the dataset.")
+    
+    # Check that the path exists
+    Path(save_dir).mkdir(parents=True, exist_ok=True)
     
     # Initialize the parallel lists where the predictions info will be stored
     file_names = []        # a list of file names for every single detection (NOT image, but detection!)
@@ -120,7 +123,7 @@ def compute_dataset_AP(cfg, dataset_name, conf_thresh):
     evaluation_info["Precision"] = evaluation_info.apply(lambda row : row["Acc_TP"] / (row["Acc_TP"] + row["Acc_FP"]), axis=1)
     evaluation_info["Recall"] = evaluation_info.apply(lambda row : row["Acc_TP"] / total_gt_count, axis=1)
     
-    # Extract the lists
+    ########### AVERAGE PRECISION CALCULATION START ###########
     recall_list = evaluation_info["Recall"].to_numpy()
     precision_list = evaluation_info["Precision"].to_numpy()
     recall_list = np.concatenate(([0.], recall_list, [1.]))
@@ -137,6 +140,7 @@ def compute_dataset_AP(cfg, dataset_name, conf_thresh):
     # and sum (\Delta recall) * prec
     ap = np.sum((recall_list[i + 1] - recall_list[i]) * precision_list[i + 1])
     logger.info(f"Average precision: {round(100 * ap, 2)}%.")
+    ########### AVERAGE PRECISION CALCULATION END ###########
     
     # Save the plot
     fig = plt.figure()
@@ -148,13 +152,13 @@ def compute_dataset_AP(cfg, dataset_name, conf_thresh):
     plt.xlabel("Recall")
     plt.ylabel("Precision")
     plt.show()
-    fig.savefig("metrics/PR_curve.jpg", dpi=fig.dpi)
+    fig.savefig(os.path.join(save_dir, "PR_curve.jpg"), dpi=fig.dpi)
     
-    # Save the dataframe to 'metrics/results.csv' and AP to results.txt
-    logger.info("Saving the results to the 'metrics' folder...")
-    evaluation_info.to_csv("metrics/results.csv")
+    # Save the dataframe to "{save_dir}/results.csv" and AP to results.txt
+    logger.info(f"Saving the results to the {save_dir} folder...")
+    evaluation_info.to_csv(os.path.join(save_dir, "results.csv"))
     text = f"Average Precision (AP)={round(100 * ap, 2)}%"
-    with open("metrics/results.txt", 'w') as f:
+    with open(os.path.join(save_dir, "results.txt"), 'w') as f:
         f.write(text)
     
     logger.info("Evaluation finished.")
@@ -190,7 +194,8 @@ def main(args):
     compute_AP = True    # If True, average precision is computed
     fast_AP = True       # If True, a subset consisting of 3000 images is used for computing AP
     conf_thresh = 0.000001   # Confidence threshold used for computing the Precision-Recall curve
-
+    save_dir = "metrics/model_10k_b6"
+    
     setup_dataset(data_path=data_path, debug_on=debug_on)
     reduce_dataset = cfg.DATALOADER.FILTER_EMPTY_ANNOTATIONS
     
@@ -199,7 +204,7 @@ def main(args):
         
     # Run testing
     if compute_AP:
-        compute_dataset_AP(cfg, "LINZ_test", conf_thresh)
+        compute_dataset_AP(cfg, "LINZ_test", conf_thresh, save_dir=save_dir)
     else:
         do_test(cfg, predictor, test_data_paths)
 

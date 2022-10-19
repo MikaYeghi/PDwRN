@@ -189,12 +189,7 @@ def register_dataset(data_path, mode, debug_on=False):
     
     return dataset_dicts
 
-def get_image_statistics(inputs, outputs):
-    # Initialize the return lists
-    file_names = []
-    confidences = []
-    true_positives = []
-    
+def get_image_statistics(inputs, outputs):    
     # Get some parameters
     n_preds = len(outputs['instances'])
     
