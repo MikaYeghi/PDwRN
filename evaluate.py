@@ -10,6 +10,7 @@ from pathlib import Path
 from matplotlib import pyplot as plt
 import random
 import pandas as pd
+import yaml
 
 import detectron2.utils.comm as comm
 from detectron2.engine import default_argument_parser, launch, default_setup, default_writers
@@ -163,6 +164,10 @@ def compute_dataset_AP(cfg, dataset_name, conf_thresh, save_dir="metrics"):
     
     logger.info("Evaluation finished.")
 
+def setup_custom(args, config):
+    vars(args)['config_file'] = config['config_file']
+    vars(args)['custom_config'] = config
+    
 def setup(args):
     """
     Create configs and perform basic setups.
@@ -177,6 +182,7 @@ def setup(args):
     
 def main(args):
     cfg = setup(args)
+    custom_config = args.custom_config
 
     # model = build_model(cfg)
     predictor = DefaultPredictor(cfg)
@@ -189,12 +195,11 @@ def main(args):
         )
 
     # Register the LINZ-Real dataset
-    data_path = "/home/myeghiaz/Project/PDwRN/data/"
-    debug_on = False     # If set to true, only a small random portion of the dataset will be loaded
-    compute_AP = True    # If True, average precision is computed
-    fast_AP = True       # If True, a subset consisting of 3000 images is used for computing AP
-    conf_thresh = 0.000001   # Confidence threshold used for computing the Precision-Recall curve
-    save_dir = "metrics/model_10k_AnchorLabels"
+    data_path = custom_config['data_path']       # Path to the dataset
+    debug_on = custom_config['debug_on']         # If set to true, only a small random portion of the dataset will be loaded
+    compute_AP = custom_config['compute_AP']     # If True, average precision is computed
+    conf_thresh = custom_config['conf_thresh']   # Confidence threshold used for computing the Precision-Recall curve
+    save_dir = custom_config['save_dir']         # Directory where to save the evaluation results
     
     setup_dataset(data_path=data_path, debug_on=debug_on)
     reduce_dataset = cfg.DATALOADER.FILTER_EMPTY_ANNOTATIONS
@@ -210,6 +215,12 @@ def main(args):
 
 if __name__ == "__main__":
     args = default_argument_parser().parse_args()
+
+    # Load custom configurations
+    with open("configs/custom_config.yaml", 'r') as f:
+        custom_config = yaml.unsafe_load(f)
+    setup_custom(args, custom_config)
+    
     print("Command Line Args:", args)
     launch(
         main,

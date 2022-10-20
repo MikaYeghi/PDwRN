@@ -1,0 +1,7 @@
+---
+config_file: "configs/PDwRN.yaml"
+data_path: "/home/myeghiaz/Project/PDwRN/data/"
+debug_on: False
+compute_AP: True
+conf_thresh: 0.000001
+save_dir: "metrics/"

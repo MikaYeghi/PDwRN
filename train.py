@@ -6,6 +6,7 @@ import torch.nn as nn
 from torch.nn.parallel import DistributedDataParallel
 import random
 import cv2
+import yaml
 
 import detectron2.utils.comm as comm
 from detectron2.checkpoint import DetectionCheckpointer, PeriodicCheckpointer
@@ -108,6 +109,10 @@ def do_train(cfg, model, resume=False):
                     writer.write()
             periodic_checkpointer.step(iteration)
 
+def setup_custom(args, config):
+    vars(args)['config_file'] = config['config_file']
+    vars(args)['custom_config'] = config
+            
 def setup(args):
     """
     Create configs and perform basic setups.
@@ -123,6 +128,7 @@ def setup(args):
 def main(args):
     # Configurations setup
     cfg = setup(args)
+    custom_config = args.custom_config
 
     # Build the model
     model = build_model(cfg)
@@ -142,8 +148,8 @@ def main(args):
         )
     
     # Register the LINZ-Real dataset
-    data_path = "/home/myeghiaz/Project/PDwRN/data/"
-    debug_on = False
+    data_path = custom_config['data_path']
+    debug_on = custom_config['debug_on']
     setup_dataset(data_path=data_path, debug_on=debug_on)
 
     # Train
@@ -152,6 +158,12 @@ def main(args):
 
 if __name__ == "__main__":
     args = default_argument_parser().parse_args()
+    
+    # Load custom configurations
+    with open("configs/custom_config.yaml", 'r') as f:
+        custom_config = yaml.unsafe_load(f)
+    setup_custom(args, custom_config)
+    
     print("Command Line Args:", args)
     launch(
         main,
