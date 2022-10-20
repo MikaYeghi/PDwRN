@@ -135,8 +135,10 @@ MODEL:
     - -1   # unassigned
     - 1    # background
     IOU_THRESHOLDS: # between 0.4 and 0.5 -- unassigned
-    - 0.4  # below 0.4 -- background
-    - 0.5  # above 0.5 -- some class
+    # - 0.4  # below 0.4 -- background
+    # - 0.5  # above 0.5 -- some class
+      - 0.125
+      - 0.167
     NMS_THRESH_TEST: 0.5
     NORM: ''
     NUM_CLASSES: 1

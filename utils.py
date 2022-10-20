@@ -217,3 +217,30 @@ def get_image_statistics(inputs, outputs):
             true_positives[closest_idx] = 1
     
     return (file_names, confidences, true_positives)
+
+def pairwise_inverse_distances(boxes1: Boxes, boxes2: Boxes) -> torch.Tensor:
+    """
+    Given two lists of boxes of size N and M, compute the reciprocals of distances
+    between the centers of **all** N x M pairs of boxes.
+    The box order must be (xmin, ymin, xmax, ymax).
+
+    Args:
+        boxes1,boxes2 (Boxes): two `Boxes`. Contains N & M boxes, respectively.
+
+    Returns:
+        Tensor: IoU, sized [N,M].
+    """
+    centers1 = boxes1.get_centers()
+    centers2 = boxes2.get_centers()
+    
+    # Compute the Euclidean distances between all box center pairs
+    distances = torch.cdist(
+        centers1.float(),
+        centers2.float(),
+        p=2
+    )
+    
+    # Get the reciprocal of every single element in the matrix
+    inverse_distances = distances.float().pow(-1)
+    
+    return inverse_distances

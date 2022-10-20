@@ -194,7 +194,7 @@ def main(args):
     compute_AP = True    # If True, average precision is computed
     fast_AP = True       # If True, a subset consisting of 3000 images is used for computing AP
     conf_thresh = 0.000001   # Confidence threshold used for computing the Precision-Recall curve
-    save_dir = "metrics/model_10k_b6"
+    save_dir = "metrics/model_10k_AnchorLabels"
     
     setup_dataset(data_path=data_path, debug_on=debug_on)
     reduce_dataset = cfg.DATALOADER.FILTER_EMPTY_ANNOTATIONS
