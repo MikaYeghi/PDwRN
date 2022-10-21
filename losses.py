@@ -136,7 +136,7 @@ def _dense_box_regression_loss(
         # This will be equivalent to minimizing the loss of the location of the centre of the object wrt the ground-truth location
         pred_anchor_deltas[..., 0] = pred_anchor_deltas[..., 0] + pred_anchor_deltas[..., 2]
         pred_anchor_deltas[..., 1] = pred_anchor_deltas[..., 1] + pred_anchor_deltas[..., 3]
-        gt_anchor_deltas[..., 0] = pred_anchor_deltas[..., 0] + pred_anchor_deltas[..., 2]
+        gt_anchor_deltas[..., 0] = gt_anchor_deltas[..., 0] + gt_anchor_deltas[..., 2]
         gt_anchor_deltas[..., 1] = gt_anchor_deltas[..., 1] + gt_anchor_deltas[..., 3]
         pred_anchor_deltas = pred_anchor_deltas[..., :2]
         gt_anchor_deltas = gt_anchor_deltas[..., :2]
@@ -159,7 +159,7 @@ def _dense_box_regression_loss(
         # This will be equivalent to minimizing the loss of the location of the centre of the object wrt the ground-truth location
         pred_anchor_deltas[..., 0] = pred_anchor_deltas[..., 0] + pred_anchor_deltas[..., 2]
         pred_anchor_deltas[..., 1] = pred_anchor_deltas[..., 1] + pred_anchor_deltas[..., 3]
-        gt_anchor_deltas[..., 0] = pred_anchor_deltas[..., 0] + pred_anchor_deltas[..., 2]
+        gt_anchor_deltas[..., 0] = gt_anchor_deltas[..., 0] + gt_anchor_deltas[..., 2]
         gt_anchor_deltas[..., 1] = gt_anchor_deltas[..., 1] + gt_anchor_deltas[..., 3]
         pred_anchor_deltas = pred_anchor_deltas[..., :2]
         gt_anchor_deltas = gt_anchor_deltas[..., :2]
