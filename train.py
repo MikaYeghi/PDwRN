@@ -136,7 +136,8 @@ def main(args):
 
     if args.eval_only:
         DetectionCheckpointer(model, save_dir=cfg.OUTPUT_DIR).resume_or_load(
-            cfg.MODEL.WEIGHTS, resume=args.resume
+            cfg.MODEL.WEIGHTS, resume=args.resume,
+            find_unused_parameters=True
         )
         return do_test(cfg, model)
     
@@ -144,7 +145,8 @@ def main(args):
     distributed = comm.get_world_size() > 1
     if distributed:
         model = DistributedDataParallel(
-            model, device_ids=[comm.get_local_rank()], broadcast_buffers=False
+            model, device_ids=[comm.get_local_rank()], broadcast_buffers=False,
+            find_unused_parameters=True
         )
     
     # Register the LINZ-Real dataset
