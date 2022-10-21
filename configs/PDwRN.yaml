@@ -126,10 +126,10 @@ MODEL:
     FOCAL_LOSS_GAMMA: 2.0
     IN_FEATURES:
     - p3
-    - p4
-    - p5
-    - p6
-    - p7
+    # - p4
+    # - p5
+    # - p6
+    # - p7
     IOU_LABELS:
     - 0    # some class (vehicle, in this case)
     - -1   # unassigned
