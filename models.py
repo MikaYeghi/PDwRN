@@ -129,8 +129,8 @@ class PDwRN(RetinaNet):
         gt_labels = []
         matched_gt_boxes = []
         for gt_per_image in gt_instances:
-            # match_quality_matrix = pairwise_iou(gt_per_image.gt_boxes, anchors)
-            match_quality_matrix = pairwise_inverse_distances(gt_per_image.gt_boxes, anchors)
+            match_quality_matrix = pairwise_iou(gt_per_image.gt_boxes, anchors)
+            # match_quality_matrix = pairwise_inverse_distances(gt_per_image.gt_boxes, anchors)
             matched_idxs, anchor_labels = self.anchor_matcher(match_quality_matrix)
             del match_quality_matrix
 

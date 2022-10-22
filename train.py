@@ -142,6 +142,7 @@ def main(args):
         return do_test(cfg, model)
     
     # Distribute among GPU-s
+    # NOTE: find_unused_parameters=True is used to ignore the p3-p7 level features. ADRESS THIS ISSUE IN THE FUTURE!
     distributed = comm.get_world_size() > 1
     if distributed:
         model = DistributedDataParallel(

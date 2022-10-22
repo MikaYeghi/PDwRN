@@ -135,10 +135,10 @@ MODEL:
     - -1   # unassigned
     - 1    # background
     IOU_THRESHOLDS: # between 0.4 and 0.5 -- unassigned
-    # - 0.4  # below 0.4 -- background
-    # - 0.5  # above 0.5 -- some class
-      - 0.125
-      - 0.167
+    - 0.4  # below 0.4 -- background
+    - 0.5  # above 0.5 -- some class
+      # - 0.125
+      # - 0.167
     NMS_THRESH_TEST: 0.5
     NORM: ''
     NUM_CLASSES: 1
@@ -292,8 +292,9 @@ SOLVER:
   REFERENCE_WORLD_SIZE: 0
   RESCALE_INTERVAL: false
   STEPS:
-  - 3000 # <- used to be 210000
-  - 6000 # <- used to be 250000
+  - 2000 # <- used to be 210000
+  - 4000 # <- used to be 250000
+  - 6000
   WARMUP_FACTOR: 0.001
   WARMUP_ITERS: 500
   WARMUP_METHOD: linear
