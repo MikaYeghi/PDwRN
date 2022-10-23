@@ -28,6 +28,8 @@ from sklearn.metrics.pairwise import pairwise_distances
 # from matplotlib import pyplot as plt
 import torch.nn as nn
 
+from utils import anchor_deltas_to_points
+
 ###
 # Copyright (c) Facebook, Inc. and its affiliates.
 import logging
@@ -134,12 +136,14 @@ def _dense_box_regression_loss(
         # x_min -> x_min + x_max
         # y_min -> y_min + y_max
         # This will be equivalent to minimizing the loss of the location of the centre of the object wrt the ground-truth location
-        pred_anchor_deltas[..., 0] = pred_anchor_deltas[..., 0] + pred_anchor_deltas[..., 2]
-        pred_anchor_deltas[..., 1] = pred_anchor_deltas[..., 1] + pred_anchor_deltas[..., 3]
-        gt_anchor_deltas[..., 0] = gt_anchor_deltas[..., 0] + gt_anchor_deltas[..., 2]
-        gt_anchor_deltas[..., 1] = gt_anchor_deltas[..., 1] + gt_anchor_deltas[..., 3]
-        pred_anchor_deltas = pred_anchor_deltas[..., :2]
-        gt_anchor_deltas = gt_anchor_deltas[..., :2]
+        # pred_anchor_deltas[..., 0] = pred_anchor_deltas[..., 0] + pred_anchor_deltas[..., 2]
+        # pred_anchor_deltas[..., 1] = pred_anchor_deltas[..., 1] + pred_anchor_deltas[..., 3]
+        # gt_anchor_deltas[..., 0] = gt_anchor_deltas[..., 0] + gt_anchor_deltas[..., 2]
+        # gt_anchor_deltas[..., 1] = gt_anchor_deltas[..., 1] + gt_anchor_deltas[..., 3]
+        # pred_anchor_deltas = pred_anchor_deltas[..., :2]
+        # gt_anchor_deltas = gt_anchor_deltas[..., :2]
+
+        pred_anchor_deltas, gt_anchor_deltas = anchor_deltas_to_points(pred_anchor_deltas, gt_anchor_deltas)
         loss_box_reg = smooth_l1_loss(
             pred_anchor_deltas[fg_mask],
             gt_anchor_deltas[fg_mask],
@@ -157,12 +161,14 @@ def _dense_box_regression_loss(
         # x_min -> x_min + x_max
         # y_min -> y_min + y_max
         # This will be equivalent to minimizing the loss of the location of the centre of the object wrt the ground-truth location
-        pred_anchor_deltas[..., 0] = pred_anchor_deltas[..., 0] + pred_anchor_deltas[..., 2]
-        pred_anchor_deltas[..., 1] = pred_anchor_deltas[..., 1] + pred_anchor_deltas[..., 3]
-        gt_anchor_deltas[..., 0] = gt_anchor_deltas[..., 0] + gt_anchor_deltas[..., 2]
-        gt_anchor_deltas[..., 1] = gt_anchor_deltas[..., 1] + gt_anchor_deltas[..., 3]
-        pred_anchor_deltas = pred_anchor_deltas[..., :2]
-        gt_anchor_deltas = gt_anchor_deltas[..., :2]
+        # pred_anchor_deltas[..., 0] = pred_anchor_deltas[..., 0] + pred_anchor_deltas[..., 2]
+        # pred_anchor_deltas[..., 1] = pred_anchor_deltas[..., 1] + pred_anchor_deltas[..., 3]
+        # gt_anchor_deltas[..., 0] = gt_anchor_deltas[..., 0] + gt_anchor_deltas[..., 2]
+        # gt_anchor_deltas[..., 1] = gt_anchor_deltas[..., 1] + gt_anchor_deltas[..., 3]
+        # pred_anchor_deltas = pred_anchor_deltas[..., :2]
+        # gt_anchor_deltas = gt_anchor_deltas[..., :2]
+        
+        pred_anchor_deltas, gt_anchor_deltas = anchor_deltas_to_points(pred_anchor_deltas, gt_anchor_deltas)
         loss_box_reg = nn.MSELoss()(
             pred_anchor_deltas[fg_mask],
             gt_anchor_deltas[fg_mask]

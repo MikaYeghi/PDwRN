@@ -244,3 +244,14 @@ def pairwise_inverse_distances(boxes1: Boxes, boxes2: Boxes) -> torch.Tensor:
     inverse_distances = distances.float().pow(-1)
     
     return inverse_distances
+
+def anchor_deltas_to_points(pred_anchor_deltas, gt_anchor_deltas):
+    pred_anchor_deltas[..., 0] = pred_anchor_deltas[..., 0] + pred_anchor_deltas[..., 2]
+    pred_anchor_deltas[..., 1] = pred_anchor_deltas[..., 1] + pred_anchor_deltas[..., 3]
+    gt_anchor_deltas[..., 0] = gt_anchor_deltas[..., 0] + gt_anchor_deltas[..., 2]
+    gt_anchor_deltas[..., 1] = gt_anchor_deltas[..., 1] + gt_anchor_deltas[..., 3]
+    pred_anchor_deltas = pred_anchor_deltas[..., :2]
+    gt_anchor_deltas = gt_anchor_deltas[..., :2]
+    
+    return pred_anchor_deltas, gt_anchor_deltas
+    
