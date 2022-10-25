@@ -173,6 +173,13 @@ def _dense_box_regression_loss(
             pred_anchor_deltas[fg_mask],
             gt_anchor_deltas[fg_mask]
         )
+    elif box_reg_loss_type == "t_distr_point":
+        gt_anchor_deltas = [box2box_transform.get_deltas(anchors, k) for k in gt_boxes]
+        gt_anchor_deltas = torch.stack(gt_anchor_deltas)  # (N, R, 4)
+        pred_anchor_deltas = cat(pred_anchor_deltas, dim=1)
+        pred_anchor_deltas, gt_anchor_deltas = anchor_deltas_to_points(pred_anchor_deltas, gt_anchor_deltas)
+
+        loss_box_reg = torch.log(1 + torch.sum(torch.square(pred_anchor_deltas[fg_mask] - gt_anchor_deltas[fg_mask])))
     else:
         raise ValueError(f"Invalid dense box regression loss type '{box_reg_loss_type}'")
     return loss_box_reg
