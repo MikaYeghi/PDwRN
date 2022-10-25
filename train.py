@@ -58,7 +58,7 @@ def do_train(cfg, model, resume=False):
     
     # TO DO: CHECK THE CONFIGURATION BELOW -- NOT SURE WHAT ALL OF THEM MEAN
     checkpointer = DetectionCheckpointer(
-        model, cfg.OUTPUT_DIR, optimizer=optimizer, scheduler=scheduler
+        model, os.path.join(cfg.OUTPUT_DIR, "train"), optimizer=optimizer, scheduler=scheduler
     )
     start_iter = (
         checkpointer.resume_or_load(cfg.MODEL.WEIGHTS, resume=resume).get("iteration", -1) + 1
@@ -67,7 +67,7 @@ def do_train(cfg, model, resume=False):
     periodic_checkpointer = PeriodicCheckpointer(
         checkpointer, cfg.SOLVER.CHECKPOINT_PERIOD, max_iter=max_iter
     )
-    writers = default_writers(cfg.OUTPUT_DIR, max_iter) if comm.is_main_process() else []
+    writers = default_writers(os.path.join(cfg.OUTPUT_DIR, "train"), max_iter) if comm.is_main_process() else []
     
     # Create a dataloader for the training dataset
     data_loader = build_detection_train_loader(cfg, mapper=LINZ_mapper)     # create the dataloader
@@ -135,7 +135,7 @@ def main(args):
     logger.info("Model:\n{}".format(model))
 
     if args.eval_only:
-        DetectionCheckpointer(model, save_dir=cfg.OUTPUT_DIR).resume_or_load(
+        DetectionCheckpointer(model, save_dir=os.path.join(cfg.OUTPUT_DIR, "train")).resume_or_load(
             cfg.MODEL.WEIGHTS, resume=args.resume,
             find_unused_parameters=True
         )

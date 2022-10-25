@@ -199,7 +199,7 @@ def main(args):
     debug_on = custom_config['debug_on']         # If set to true, only a small random portion of the dataset will be loaded
     compute_AP = custom_config['compute_AP']     # If True, average precision is computed
     conf_thresh = custom_config['conf_thresh']   # Confidence threshold used for computing the Precision-Recall curve
-    save_dir = custom_config['save_dir']         # Directory where to save the evaluation results
+    save_dir = os.path.join(cfg.OUTPUT_DIR, "evaluation")         # Directory where to save the evaluation results
     
     setup_dataset(data_path=data_path, debug_on=debug_on)
     reduce_dataset = cfg.DATALOADER.FILTER_EMPTY_ANNOTATIONS
