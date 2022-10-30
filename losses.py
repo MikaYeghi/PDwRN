@@ -129,19 +129,6 @@ def _dense_box_regression_loss(
         gt_anchor_deltas = [box2box_transform.get_deltas(anchors, k) for k in gt_boxes]
         gt_anchor_deltas = torch.stack(gt_anchor_deltas)  # (N, R, 4)
         pred_anchor_deltas = cat(pred_anchor_deltas, dim=1)
-        
-        # Modify the anchors to include the object centres. Currently they store the bounding boxes in the following format:
-        # [x_min, y_min, x_max, y_max]
-        # It is enough to replace the first and second columns with
-        # x_min -> x_min + x_max
-        # y_min -> y_min + y_max
-        # This will be equivalent to minimizing the loss of the location of the centre of the object wrt the ground-truth location
-        # pred_anchor_deltas[..., 0] = pred_anchor_deltas[..., 0] + pred_anchor_deltas[..., 2]
-        # pred_anchor_deltas[..., 1] = pred_anchor_deltas[..., 1] + pred_anchor_deltas[..., 3]
-        # gt_anchor_deltas[..., 0] = gt_anchor_deltas[..., 0] + gt_anchor_deltas[..., 2]
-        # gt_anchor_deltas[..., 1] = gt_anchor_deltas[..., 1] + gt_anchor_deltas[..., 3]
-        # pred_anchor_deltas = pred_anchor_deltas[..., :2]
-        # gt_anchor_deltas = gt_anchor_deltas[..., :2]
 
         pred_anchor_deltas, gt_anchor_deltas = anchor_deltas_to_points(pred_anchor_deltas, gt_anchor_deltas)
         loss_box_reg = smooth_l1_loss(
@@ -155,19 +142,6 @@ def _dense_box_regression_loss(
         gt_anchor_deltas = torch.stack(gt_anchor_deltas)  # (N, R, 4)
         pred_anchor_deltas = cat(pred_anchor_deltas, dim=1)
         
-        # Modify the anchors to include the object centres. Currently they store the bounding boxes in the following format:
-        # [x_min, y_min, x_max, y_max]
-        # It is enough to replace the first and second columns with
-        # x_min -> x_min + x_max
-        # y_min -> y_min + y_max
-        # This will be equivalent to minimizing the loss of the location of the centre of the object wrt the ground-truth location
-        # pred_anchor_deltas[..., 0] = pred_anchor_deltas[..., 0] + pred_anchor_deltas[..., 2]
-        # pred_anchor_deltas[..., 1] = pred_anchor_deltas[..., 1] + pred_anchor_deltas[..., 3]
-        # gt_anchor_deltas[..., 0] = gt_anchor_deltas[..., 0] + gt_anchor_deltas[..., 2]
-        # gt_anchor_deltas[..., 1] = gt_anchor_deltas[..., 1] + gt_anchor_deltas[..., 3]
-        # pred_anchor_deltas = pred_anchor_deltas[..., :2]
-        # gt_anchor_deltas = gt_anchor_deltas[..., :2]
-        
         pred_anchor_deltas, gt_anchor_deltas = anchor_deltas_to_points(pred_anchor_deltas, gt_anchor_deltas)
         loss_box_reg = nn.MSELoss()(
             pred_anchor_deltas[fg_mask],
@@ -177,8 +151,8 @@ def _dense_box_regression_loss(
         gt_anchor_deltas = [box2box_transform.get_deltas(anchors, k) for k in gt_boxes]
         gt_anchor_deltas = torch.stack(gt_anchor_deltas)  # (N, R, 4)
         pred_anchor_deltas = cat(pred_anchor_deltas, dim=1)
+        
         pred_anchor_deltas, gt_anchor_deltas = anchor_deltas_to_points(pred_anchor_deltas, gt_anchor_deltas)
-
         loss_box_reg = torch.log(1 + torch.sum(torch.square(pred_anchor_deltas[fg_mask] - gt_anchor_deltas[fg_mask])))
     else:
         raise ValueError(f"Invalid dense box regression loss type '{box_reg_loss_type}'")
