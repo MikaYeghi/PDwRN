@@ -135,10 +135,10 @@ MODEL:
     - -1   # unassigned
     - 1    # background
     IOU_THRESHOLDS: # between 0.4 and 0.5 -- unassigned
-    - 0.4  # below 0.4 -- background
-    - 0.5  # above 0.5 -- some class
-      # - 0.125
-      # - 0.167
+    # - 0.4  # below 0.4 -- background
+    # - 0.5  # above 0.5 -- some class
+      - 0.125
+      - 0.167
     NMS_THRESH_TEST: 0.5
     NORM: ''
     NUM_CLASSES: 1
@@ -285,7 +285,7 @@ SOLVER:
   GAMMA: 0.1
   IMS_PER_BATCH: 8
   LR_SCHEDULER_NAME: WarmupMultiStepLR
-  MAX_ITER: 5000
+  MAX_ITER: 7000
   MOMENTUM: 0.9
   NESTEROV: false
   NUM_DECAYS: 3
