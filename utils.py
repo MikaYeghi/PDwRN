@@ -79,7 +79,7 @@ def setup_dataset(data_path, debug_on):
 
 def XYWH2XYXY(bbox):
     """
-    This function takes a list of 4 values which represent a bounding box in XYWH format, and converts it into the XYXY format.
+    This function takes a list of 4 values which represent a bounding box in X_minY_minWH format, and converts it into the XYXY format.
     
     Input:
         - bbox: list (or other iterable consisting of 4 values)
