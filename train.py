@@ -48,7 +48,7 @@ import time
 logger = logging.getLogger("detectron2")
 
     
-def do_train(cfg, model, resume=False):
+def do_train(cfg, model, custom_config, resume=False):
     # Set the model to training mode
     model.train()
     
@@ -103,7 +103,7 @@ def do_train(cfg, model, resume=False):
                 comm.synchronize()
 
             if iteration - start_iter > 5 and (
-                (iteration + 1) % 20 == 0 or iteration == max_iter - 1
+                (iteration + 1) % custom_config['info_update_period'] == 0 or iteration == max_iter - 1
             ):
                 for writer in writers:
                     writer.write()
@@ -156,7 +156,7 @@ def main(args):
     setup_dataset(data_path=data_path, debug_on=debug_on)
 
     # Train
-    do_train(cfg, model, resume=args.resume)
+    do_train(cfg, model, custom_config, resume=args.resume)
     logger.info("Training finished.")
 
 if __name__ == "__main__":
