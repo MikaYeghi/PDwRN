@@ -2,9 +2,11 @@
 # Training configs
 config_file: "configs/PDwRN.yaml"
 data_path: "/home/myeghiaz/Project/PDwRN/data/"
-debug_on: False
 info_update_period: 10
 
 # Evaluation configs
 compute_AP: True
 conf_thresh: 0.000001
+
+# Training + Evaluation configs
+debug_on: False

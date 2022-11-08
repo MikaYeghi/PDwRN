@@ -109,7 +109,7 @@ def compute_dataset_AP(cfg, dataset_name, conf_thresh, save_dir="metrics"):
         list(zip(file_names, confidences, true_positives)), 
         columns=["File names", "Confidence", "TP"]
     )
-    
+
     # Sort the dataframe in descending confidence order
     evaluation_info = evaluation_info.sort_values(by=['Confidence'], ascending=False)
     
@@ -123,6 +123,11 @@ def compute_dataset_AP(cfg, dataset_name, conf_thresh, save_dir="metrics"):
     # Create the "Precision" and "Recall" columns
     evaluation_info["Precision"] = evaluation_info.apply(lambda row : row["Acc_TP"] / (row["Acc_TP"] + row["Acc_FP"]), axis=1)
     evaluation_info["Recall"] = evaluation_info.apply(lambda row : row["Acc_TP"] / total_gt_count, axis=1)
+    
+    # Create the "F1" score column and extract the optimal confidence
+    evaluation_info["F1"] = evaluation_info.apply(lambda row : 2 * row['Precision'] * row['Recall'] / (row['Precision'] + row['Recall']), axis=1)
+    optimal_confidence = evaluation_info.loc[evaluation_info['F1'].idxmax()]['Confidence']
+    F1_max = evaluation_info.loc[evaluation_info['F1'].idxmax()]['F1']
     
     ########### AVERAGE PRECISION CALCULATION START ###########
     recall_list = evaluation_info["Recall"].to_numpy()
@@ -158,7 +163,7 @@ def compute_dataset_AP(cfg, dataset_name, conf_thresh, save_dir="metrics"):
     # Save the dataframe to "{save_dir}/results.csv" and AP to results.txt
     logger.info(f"Saving the results to the {save_dir} folder...")
     evaluation_info.to_csv(os.path.join(save_dir, "results.csv"))
-    text = f"Average Precision (AP)={round(100 * ap, 2)}%"
+    text = f"Average Precision (AP)={round(100 * ap, 2)}%\nOptimal confidence={round(optimal_confidence, 4)}\nMaximum F1={round(100 * F1_max, 2)}%"
     with open(os.path.join(save_dir, "results.txt"), 'w') as f:
         f.write(text)
     
@@ -185,14 +190,14 @@ def main(args):
     custom_config = args.custom_config
 
     # model = build_model(cfg)
-    predictor = DefaultPredictor(cfg)
-    logger.info("Predictor model:\n{}".format(predictor.model))
+#     predictor = DefaultPredictor(cfg)
+#     logger.info("Predictor model:\n{}".format(predictor.model))
 
-    distributed = comm.get_world_size() > 1
-    if distributed:
-        predictor = DistributedDataParallel(
-            predictor, device_ids=[comm.get_local_rank()], broadcast_buffers=False
-        )
+#     distributed = comm.get_world_size() > 1
+#     if distributed:
+#         predictor = DistributedDataParallel(
+#             predictor, device_ids=[comm.get_local_rank()], broadcast_buffers=False
+#         )
 
     # Register the LINZ-Real dataset
     data_path = custom_config['data_path']       # Path to the dataset
