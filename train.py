@@ -47,11 +47,46 @@ import time
 
 logger = logging.getLogger("detectron2")
 
-    
+
+def do_test(cfg, model, val_loader, storage, num_samples=512):
+    with torch.no_grad():
+        # Get the indices of data samples that are used for validation
+        img_ids = random.sample(range(0, len(val_loader)), num_samples)
+        total_data = []
+        for data, iter_id in zip(val_loader, range(len(val_loader))):
+            if iter_id in img_ids:
+                total_data.append(data[0])
+            else:
+                if len(total_data) >= num_samples:
+                    break
+        
+        # Run validation on the extracted data
+        # Assert that the number of samples is divisible by the batch size
+        assert num_samples % cfg.SOLVER.IMS_PER_BATCH == 0, "Number of samples is not divisible by the batch size!"
+        batch_size = cfg.SOLVER.IMS_PER_BATCH
+        loss_dict = {"loss_cls": 0.0, "loss_point_reg": 0.0}
+        for idx in range(num_samples // batch_size):
+            data_ = total_data[idx * batch_size : (idx + 1) * batch_size]
+            loss_dict_ = model(data_)
+            loss_dict['loss_cls'] += loss_dict_['loss_cls']
+            loss_dict['loss_point_reg'] += loss_dict_['loss_point_reg']
+        # Normalize the loss
+        for k, _ in loss_dict.items():
+            loss_dict[k] /= (num_samples / batch_size)
+        # Change the loss key names
+        loss_dict = {
+            "val_loss_cls": loss_dict['loss_cls'],
+            "val_point_reg": loss_dict['loss_point_reg']
+        }
+        loss_dict_reduced = {k: v.item() for k, v in comm.reduce_dict(loss_dict).items()}
+        losses_reduced = sum(loss for loss in loss_dict_reduced.values())
+        if comm.is_main_process():
+            storage.put_scalars(val_total_loss=losses_reduced, **loss_dict_reduced)
+
 def do_train(cfg, model, custom_config, resume=False):
     # Set the model to training mode
     model.train()
-    
+
     # Create the optimizer and the LR-scheduler
     optimizer = build_optimizer(cfg, model)
     scheduler = build_lr_scheduler(cfg, optimizer)
@@ -70,12 +105,13 @@ def do_train(cfg, model, custom_config, resume=False):
     writers = default_writers(os.path.join(cfg.OUTPUT_DIR, "training"), max_iter) if comm.is_main_process() else []
     
     # Create a dataloader for the training dataset
-    data_loader = build_detection_train_loader(cfg, mapper=LINZ_mapper)     # create the dataloader
+    train_loader = build_detection_train_loader(cfg, mapper=LINZ_mapper)                                    # train loader
+    val_loader = build_detection_test_loader(cfg, dataset_name=cfg.DATASETS['TEST'], mapper=LINZ_mapper)    # validation loader
     
     logger.info("Starting training from iteration {}".format(start_iter))
 
     with EventStorage(start_iter) as storage:
-        for data, iteration in zip(data_loader, range(start_iter, max_iter)):
+        for data, iteration in zip(train_loader, range(start_iter, max_iter)):
             storage.iter = iteration
 
             loss_dict = model(data)
@@ -92,14 +128,14 @@ def do_train(cfg, model, custom_config, resume=False):
             optimizer.step()
             storage.put_scalar("lr", optimizer.param_groups[0]["lr"], smoothing_hint=False)
             scheduler.step()
-            
+
             if (
                 cfg.TEST.EVAL_PERIOD > 0
                 and (iteration + 1) % cfg.TEST.EVAL_PERIOD == 0
                 and iteration != max_iter - 1
             ):
-                do_test(cfg, model)
-                # Compared to "train_net.py", the test results are not dumped to EventStorage
+                # Run validation
+                do_test(cfg, model, val_loader, storage)
                 comm.synchronize()
 
             if iteration - start_iter > 5 and (
