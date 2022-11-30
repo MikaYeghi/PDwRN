@@ -7,6 +7,7 @@ info_update_period: 10
 # Evaluation configs
 compute_AP: True
 conf_thresh: 0.000001
+test_dataset: "LINZ_train"
 
 # Training + Evaluation configs
 debug_on: False

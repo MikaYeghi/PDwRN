@@ -200,6 +200,7 @@ def main(args):
 #         )
 
     # Register the LINZ-Real dataset
+    dataset_name = custom_config['test_dataset']
     data_path = custom_config['data_path']       # Path to the dataset
     debug_on = custom_config['debug_on']         # If set to true, only a small random portion of the dataset will be loaded
     compute_AP = custom_config['compute_AP']     # If True, average precision is computed
@@ -214,7 +215,7 @@ def main(args):
         
     # Run testing
     if compute_AP:
-        compute_dataset_AP(cfg, "LINZ_test", conf_thresh, save_dir=save_dir)
+        compute_dataset_AP(cfg, dataset_name, conf_thresh, save_dir=save_dir)
     else:
         do_test(cfg, predictor, test_data_paths)
 
