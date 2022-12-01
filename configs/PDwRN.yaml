@@ -104,7 +104,7 @@ MODEL:
     - false
     - false
     - false
-    DEPTH: 50
+    DEPTH: 101
     NORM: FrozenBN
     NUM_GROUPS: 1
     OUT_FEATURES:
@@ -148,7 +148,7 @@ MODEL:
     NUM_CONVS: 4
     PRIOR_PROB: 0.01
     SCORE_THRESH_TEST: 0.8    # predictions with confidence above this value are preserved
-    SMOOTH_L1_LOSS_BETA: 0.0
+    SMOOTH_L1_LOSS_BETA: 0.5
     TOPK_CANDIDATES_TEST: 1000
   ROI_BOX_CASCADE_HEAD:
     BBOX_REG_WEIGHTS:
@@ -270,20 +270,21 @@ MODEL:
     NAME: SemSegFPNHead
     NORM: GN
     NUM_CLASSES: 54
-  WEIGHTS: https://dl.fbaipublicfiles.com/detectron2/COCO-Detection/retinanet_R_50_FPN_3x/190397829/model_final_5bd44e.pkl
+  # WEIGHTS: https://dl.fbaipublicfiles.com/detectron2/COCO-Detection/retinanet_R_50_FPN_3x/190397829/model_final_5bd44e.pkl
+  WEIGHTS: https://dl.fbaipublicfiles.com/detectron2/COCO-Detection/retinanet_R_101_FPN_3x/190397697/model_final_971ab9.pkl
 OUTPUT_DIR: ./output
 SEED: -1
 SOLVER:
   AMP:
     ENABLED: false
-  BASE_LR: 0.01
+  BASE_LR: 0.001
   BASE_LR_END: 0.0
   BIAS_LR_FACTOR: 1.0
   CHECKPOINT_PERIOD: 5000
   CLIP_GRADIENTS:
     CLIP_TYPE: value
     CLIP_VALUE: 1.0
-    ENABLED: false
+    ENABLED: true
     NORM_TYPE: 2.0
   GAMMA: 0.1
   IMS_PER_BATCH: 8
@@ -295,10 +296,10 @@ SOLVER:
   REFERENCE_WORLD_SIZE: 0
   RESCALE_INTERVAL: false
   STEPS:
-  - 3000 # <- used to be 210000
-  - 6000 # <- used to be 250000
+  - 1000 # <- used to be 210000
+  - 2000 # <- used to be 250000
   WARMUP_FACTOR: 0.001
-  WARMUP_ITERS: 500
+  WARMUP_ITERS: 200
   WARMUP_METHOD: linear
   WEIGHT_DECAY: 0.0001
   WEIGHT_DECAY_BIAS: null

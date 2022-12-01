@@ -95,6 +95,7 @@ class PDwRN(RetinaNet):
         if self.box_reg_loss_type == "l2_point":
             point_regression_loss = 100 * loss_point_reg
         elif self.box_reg_loss_type == "smooth_l1_point":
+            class_loss *= 0.1
             point_regression_loss = loss_point_reg / normalizer
         elif self.box_reg_loss_type == "t_distr_point":
             point_regression_loss = loss_point_reg
