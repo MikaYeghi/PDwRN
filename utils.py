@@ -8,6 +8,8 @@ import torch.nn as nn
 import pickle
 from random import randrange
 import argparse
+from torchvision.ops import boxes as box_ops
+from torch import Tensor
 
 from detectron2.structures import BoxMode, Instances, Boxes
 from detectron2.data import MetadataCatalog, DatasetCatalog
@@ -250,4 +252,43 @@ def anchor_deltas_to_points(pred_anchor_deltas, gt_anchor_deltas):
     gt_anchor_deltas = gt_anchor_deltas[..., :2]
     
     return pred_anchor_deltas, gt_anchor_deltas
+
+def batched_nms(
+    boxes: torch.Tensor, scores: torch.Tensor, idxs: torch.Tensor, iou_threshold: float
+):
+    """
+    Inputs:
+        - boxes : a tensor of shape (number of boxes, 4), which stores box coordinates
+        - scores : a tensor of shape (number of boxes), which stores the confidences in each box
+        - idxs : a tensor of shape (number of boxes), which stores the class indices assigned to each particular box
+        - iou_threshold : threshold value for non-maximum suppression
     
+    !!!NOTE!!! Current implementation doesn't consider the multi-class setting. Extend when moving to multiple classes!
+    """    
+    assert boxes.shape[-1] == 4
+    # Note: Torchvision already has a strategy (https://github.com/pytorch/vision/issues/1311)
+    # to decide whether to use coordinate trick or for loop to implement batched_nms. So we
+    # just call it directly.
+    # Fp16 does not have enough range for batched NMS, so adding float().
+    
+    # Convert box coordinates to box center coordinates
+    boxes = Boxes(boxes)
+    inv_dist = pairwise_inverse_distances(boxes, boxes)
+    
+    # Set 1 for active comparisons and 0 for inactive (i.e. distance is more than the threshold distance).
+    # Also set all diagonal values to 0 to avoid unnecessary comparison
+    inv_dist[inv_dist >= iou_threshold] = 1
+    inv_dist[inv_dist < iou_threshold] = 0
+    # inv_dist = inv_dist * (1 - torch.eye(inv_dist.shape[0], device=inv_dist.device))
+    
+    # Record the scores for active comparisons by overlaying the score vector over the matrix of active comparisons
+    compars = inv_dist * scores[None, :]
+    
+    # Find indices of the maximum score for each row
+    max_idxs = compars.argmax(0)
+    
+    # Keep the prediction only if the given point has the highest score among its vicinity, i.e. the maximum score point 
+    # is a diagonal element
+    keep = max_idxs[max_idxs == torch.arange(max_idxs.shape[0], device=max_idxs.device)]
+    
+    return keep

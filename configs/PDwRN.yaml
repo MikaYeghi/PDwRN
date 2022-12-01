@@ -142,7 +142,7 @@ MODEL:
     # - 0.5  # above 0.5 -- some class
       - 0.125
       - 0.333
-    NMS_THRESH_TEST: 0.5
+    NMS_THRESH_TEST: 0.16667
     NORM: ''
     NUM_CLASSES: 1
     NUM_CONVS: 4
